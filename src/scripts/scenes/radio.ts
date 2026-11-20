@@ -3,7 +3,7 @@
 // la hoja con los datos de contacto es HTML puesto encima.
 
 import { g } from '../dither';
-import { box, deskY, lamp, lampLight, lampRect, paper, room, shadow, view, windowPane, type Lamp } from './desk';
+import { box, deskY, lamp, lampLight, lampRect, paper, room, shadow, view, windowPane, type Lamp, breach, brokenPane, rubble, cracks } from './desk';
 import { rain } from './exterior';
 import { friends } from '../../data/friends';
 import type { Env, Rect } from './types';
@@ -175,7 +175,11 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
 
   // Ventana recortada: afuera, el mástil de la antena contra el cielo real
   const win: Rect = { x: W * 0.83, y: -S * 0.04, w: W * 0.3, h: S * 0.33 };
-  windowPane(ctx, win, 2, 2, env.daylight);
+  if (env.doom) {
+    breach(ctx, W * (v.port ? 0.2 : 0.22), S * 0.13, W * (v.port ? 0.14 : 0.1), S * 0.12, 7.7);
+    breach(ctx, W * 0.62, S * 0.04, W * 0.07, S * 0.06, 2.9);
+    brokenPane(ctx, win, env.daylight);
+  } else windowPane(ctx, win, 2, 2, env.daylight);
   ctx.save();
   ctx.beginPath();
   ctx.rect(win.x, win.y, win.w, win.h);
@@ -186,7 +190,8 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   ctx.lineWidth = 1;
   ctx.beginPath();
   const seg = Math.max(6, win.h / 5);
-  for (let y = win.y + win.h; y > win.y - seg; y -= seg) {
+  // en ruinas la torre llega hasta la mitad
+  for (let y = win.y + win.h; y > (env.doom ? win.y + win.h * 0.5 : win.y - seg); y -= seg) {
     ctx.moveTo(mx - half, y);
     ctx.lineTo(mx - half, y - seg);
     ctx.moveTo(mx + half, y);
@@ -201,6 +206,8 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   ctx.restore();
 
   lampLight(ctx, L.lamp, env.lamp, v);
+
+  if (env.doom) rubble(ctx, v, W, 20, 6.1);
 
   // ── Receptor: caja con tapa en fuga ──
   const { x: rx, y: ry0, w: rw, h: rh } = L.receiver;
@@ -315,6 +322,7 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   // ── Micrófono de estación y cuadro de los amigos ──
   mic(ctx, W * (v.port ? 0.2 : 0.285), deskY(v, 0.13), S * (v.port ? 0.16 : 0.19));
   photoFrame(ctx, L);
+  if (env.doom) cracks(ctx, L.frame, 5.5);
 
   // ── Manipulador telegráfico, cerca ──
   const { x: kx, y: ky, w: kw, h: kh } = L.key;

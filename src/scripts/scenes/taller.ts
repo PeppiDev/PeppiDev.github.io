@@ -4,7 +4,7 @@
 
 import { g } from '../dither';
 import { FINENESS, profile } from '../zeppelin';
-import { deskY, lamp, lampLight, lampRect, paper, room, shadow, view, windowPane, type Lamp } from './desk';
+import { deskY, lamp, lampLight, lampRect, paper, room, shadow, view, windowPane, type Lamp, breach, brokenPane, rubble, cracks } from './desk';
 import { rain } from './exterior';
 import type { Env, Rect } from './types';
 
@@ -37,7 +37,7 @@ export const SPACE = CHARS.length;
 export const charOf = (i: number) => (i === SPACE ? ' ' : (CHARS[i] ?? ''));
 
 /** Estado vivo de la máquina: cuándo bajó cada tecla y dónde va el carro (-0.5..0.5). */
-export const fx = { down: new Array<number>(SPACE + 1).fill(-9), carriage: 0, bones: -9, nuke: -9 };
+export const fx = { down: new Array<number>(SPACE + 1).fill(-9), carriage: 0, bones: -9, nuke: -999, hour: 0 };
 /** Fin del mundo: el destello y el hongo a lo lejos. */
 export const nuke = () => (fx.nuke = performance.now() / 1000);
 /** Remezón cuando llega la onda (en fracción del ancho). */
@@ -493,11 +493,15 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   const S = v.sh;
   room(ctx, W, H, v, env);
 
+  if (env.doom) {
+    breach(ctx, W * (v.port ? 0.55 : 0.58), S * 0.15, W * (v.port ? 0.13 : 0.1), S * 0.13, 4.2);
+    breach(ctx, W * 0.36, S * 0.03, W * 0.05, S * 0.05, 11.5);
+  }
   lampLight(ctx, L.lamp, env.lamp, v);
 
   // Ventanal del hangar, recortado por el borde
   const win: Rect = { x: W * (v.port ? 0.74 : 0.8), y: -S * 0.04, w: W * 0.3, h: S * 0.28 };
-  windowPane(ctx, win, 2, 2, env.daylight);
+  env.doom ? brokenPane(ctx, win, env.daylight) : windowPane(ctx, win, 2, 2, env.daylight);
   let bars = false;
   {
     // el esqueleto: cruza el ventanal de izquierda a derecha, por detrás de los palillos
@@ -518,7 +522,7 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     }
   }
   const nk = t - fx.nuke;
-  if (nk > 0 && nk < 30) {
+  if (nk > 0 && nk < 30 && !env.doom) {
     // el hongo: bola de fuego que sube, tallo, anillo de condensación y el horizonte a contraluz
     bars = true;
     const vis = Math.min(W, win.x + win.w) - win.x;
@@ -577,7 +581,7 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     }
     ctx.restore();
   }
-  if (bars) {
+  if (bars && !env.doom) {
     ctx.fillStyle = g(0.1 + 0.3 * env.daylight);
     ctx.fillRect(Math.round(win.x + win.w / 2) - 1, Math.round(win.y), 2, Math.round(win.h));
     ctx.fillRect(Math.round(win.x), Math.round(win.y + win.h / 2) - 1, Math.round(win.w), 2);
@@ -593,6 +597,36 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
 
   // Al fondo del tablero: el plano del LZ 20 apoyado contra el muro
   blueprint(ctx, W * 0.03, S * (v.port ? 0.2 : 0.17), W * (v.port ? 0.36 : 0.31), v.back + S * 0.02);
+  if (env.doom) {
+    // el plano: chamuscado, con una esquina menos
+    const bx = W * 0.03;
+    const by = S * (v.port ? 0.2 : 0.17);
+    const bw = W * (v.port ? 0.36 : 0.31);
+    const bh = v.back + S * 0.02 - by;
+    ctx.fillStyle = g(0.03 + 0.1 * env.daylight);
+    ctx.beginPath();
+    ctx.moveTo(bx + bw * 0.6, by - 3);
+    ctx.lineTo(bx + bw * 0.68, by + bh * 0.16);
+    ctx.lineTo(bx + bw * 0.78, by + bh * 0.1);
+    ctx.lineTo(bx + bw * 0.84, by + bh * 0.3);
+    ctx.lineTo(bx + bw * 0.93, by + bh * 0.26);
+    ctx.lineTo(bx + bw * 1.05, by + bh * 0.5);
+    ctx.lineTo(bx + bw * 1.05, by - 3);
+    ctx.fill();
+    ctx.fillStyle = g(0.02);
+    for (const [u, w2, r] of [[0.25, 0.7, 0.13], [0.55, 0.45, 0.09], [0.12, 0.25, 0.07], [0.7, 0.85, 0.1]]) {
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.ellipse(bx + bw * u, by + bh * w2, bw * r, bw * r * 0.7, 0.4, 0, 7);
+      ctx.fill();
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.ellipse(bx + bw * u, by + bh * w2, bw * r * 1.5, bw * r, 0.4, 0, 7);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    rubble(ctx, v, W, 22, 3.3);
+  }
   // planos enrollados
   for (let i = 0; i < 2; i++) {
     const y = deskY(v, 0.07 + i * 0.035);
@@ -612,12 +646,23 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     ctx.fill();
   }
 
-  clock(ctx, W * (v.port ? 0.765 : 0.405), deskY(v, 0.07), S * 0.06, env.hour, env.still ? 0 : new Date().getSeconds());
+  if (env.doom) {
+    // el despertador, tumbado y parado a la hora en que pasó
+    ctx.save();
+    ctx.translate(W * (v.port ? 0.765 : 0.405), deskY(v, 0.07) - S * 0.05);
+    ctx.rotate(1.25);
+    clock(ctx, 0, S * 0.05, S * 0.06, fx.hour, 17);
+    ctx.restore();
+  } else {
+    fx.hour = env.hour;
+    clock(ctx, W * (v.port ? 0.765 : 0.405), deskY(v, 0.07), S * 0.06, env.hour, env.still ? 0 : new Date().getSeconds());
+  }
 
   if (v.port) paper(ctx, L.sheet1, W * 0.02);
   typewriter(ctx, L, t);
   mug(ctx, W * (v.port ? 0.86 : 0.87), S * (v.port ? 0.93 : 0.9), S * 0.034);
-  lamp(ctx, L.lamp, env.lamp);  if (nk > 0 && nk < 1.2) {
+  lamp(ctx, L.lamp, env.lamp);
+  if (nk > 0 && nk < 1.2) {
     // la luz entra de golpe y baña todo el taller
     ctx.save();
     ctx.globalCompositeOperation = 'source-atop';

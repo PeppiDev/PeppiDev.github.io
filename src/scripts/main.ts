@@ -392,7 +392,7 @@ let dooming = 0;
 function doom() {
   if (state.scene !== 'taller' || ui.classList.contains('moving')) return;
   written = '';
-  if (still) return descend(true);
+  if (still || env.doom) return descend(true);
   ui.classList.add('moving');
   taller.nuke();
   clearTimeout(dooming);
@@ -411,7 +411,8 @@ function descend(run = false) {
   const k = run ? 0.42 : 1;
   const arrive = () => {
     if (run) {
-      exterior.fx.doom = true;
+      exterior.fx.doom = env.doom = true;
+      $('#upstairs').textContent = tr('← Salir afuera', '← Go outside');
       ui.dataset.doom = '';
       place();
     }
@@ -468,7 +469,8 @@ function descend(run = false) {
     .to(state, { fade: 0, duration: 0.9, ease: 'none' }, '+=0.25');
 }
 
-$('#upstairs').addEventListener('click', () => go('taller'));
+// después del fin del mundo se sale directo a la intemperie
+$('#upstairs').addEventListener('click', () => (env.doom ? (location.hash = '#/') : go('taller')));
 // en el búnker la dirección sigue siendo la del taller: el enlace igual tiene que sacar de ahí
 document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
   a.addEventListener('click', () => {

@@ -12,4 +12,5 @@ export interface Env {
   daylight: number; // cuánta luz de día entra por las ventanas 0..1
   lamp: number; // lámpara del escritorio 0..1
   still: boolean; // prefers-reduced-motion
+  doom?: boolean; // después del fin del mundo: los interiores también quedaron en ruinas
 }

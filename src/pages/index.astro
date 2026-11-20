@@ -684,6 +684,19 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
   [data-look] .board > * {
     pointer-events: none;
   }
+  /* después del fin del mundo: a la nave caída ya no se entra, y los papeles quedaron rotos y manchados */
+  [data-doom] .spot[data-to='lz20'] {
+    display: none;
+  }
+  [data-doom] .sheet {
+    clip-path: polygon(0 2%, 9% 0, 22% 1.5%, 31% 0, 47% 1%, 58% 0, 66% 3%, 71% 9%, 78% 6%, 83% 13%, 90% 11%, 100% 19%, 99% 44%, 100% 58%, 98.5% 73%, 100% 100%, 76% 99%, 61% 100%, 52% 97.5%, 44% 100%, 20% 99%, 12% 94%, 7% 96%, 0 88%, 1.5% 61%, 0 47%, 1% 23%);
+    background-image:
+      radial-gradient(ellipse 30% 18% at 84% 22%, rgba(23, 32, 43, 0.5) 0 55%, rgba(23, 32, 43, 0.22) 56% 99%, transparent 100%),
+      radial-gradient(ellipse 22% 13% at 12% 86%, rgba(154, 74, 42, 0.45) 0 60%, rgba(154, 74, 42, 0.2) 61% 99%, transparent 100%),
+      radial-gradient(ellipse 12% 9% at 58% 55%, rgba(154, 74, 42, 0.3) 0 70%, rgba(154, 74, 42, 0.14) 71% 99%, transparent 100%),
+      radial-gradient(ellipse 16% 8% at 30% 8%, rgba(23, 32, 43, 0.3) 0 99%, transparent 100%),
+      linear-gradient(115deg, transparent 0 61.8%, rgba(23, 32, 43, 0.35) 62% 62.3%, transparent 62.5%);
+  }
   /* después del fin del mundo: el sobreviviente en la pista */
   #survivor {
     display: none;

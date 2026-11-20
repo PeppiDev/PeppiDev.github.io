@@ -736,20 +736,54 @@ function ruins(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, W: n
     ctx.strokeStyle = g(0.5);
     lattice(4, 9);
     ctx.restore();
-    const sw = Math.round(mh * 0.2);
-    const sh = Math.round(mh * 0.1);
+    // la caseta: sin techo, con el muro del fondo a la vista y dos machones en pie
+    const sw = Math.round(mh * 0.3);
+    const sh = Math.round(mh * 0.16);
     const sx = Math.round(mx + half * 1.6);
-    ctx.fillStyle = g(0.3);
+    ctx.fillStyle = g(0.08);
+    ctx.beginPath();
+    ctx.moveTo(sx + sw * 0.1, mbase);
+    ctx.lineTo(sx + sw * 0.1, mbase - sh * 0.75);
+    ctx.lineTo(sx + sw * 0.35, mbase - sh * 0.5);
+    ctx.lineTo(sx + sw * 0.5, mbase - sh * 0.62);
+    ctx.lineTo(sx + sw * 0.7, mbase - sh * 0.3);
+    ctx.lineTo(sx + sw * 0.95, mbase - sh * 0.4);
+    ctx.lineTo(sx + sw * 0.95, mbase);
+    ctx.fill();
+    ctx.fillStyle = g(0.85);
     ctx.beginPath();
     ctx.moveTo(sx, mbase);
-    ctx.lineTo(sx, mbase - sh * 1.1);
-    ctx.lineTo(sx + sw * 0.4, mbase - sh * 0.7);
-    ctx.lineTo(sx + sw * 0.7, mbase - sh);
-    ctx.lineTo(sx + sw, mbase - sh * 0.5);
+    ctx.lineTo(sx, mbase - sh * 1.05);
+    ctx.lineTo(sx + sw * 0.1, mbase - sh * 0.9);
+    ctx.lineTo(sx + sw * 0.16, mbase - sh * 0.55);
+    ctx.lineTo(sx + sw * 0.24, mbase - sh * 0.3);
+    ctx.lineTo(sx + sw * 0.3, mbase);
+    ctx.fill();
+    ctx.fillStyle = g(0.6);
+    ctx.beginPath();
+    ctx.moveTo(sx + sw * 0.72, mbase);
+    ctx.lineTo(sx + sw * 0.78, mbase - sh * 0.45);
+    ctx.lineTo(sx + sw * 0.9, mbase - sh * 0.7);
+    ctx.lineTo(sx + sw, mbase - sh * 0.6);
     ctx.lineTo(sx + sw, mbase);
     ctx.fill();
-    ctx.fillStyle = g(0.03);
-    ctx.fillRect(sx + Math.round(sw * 0.5), mbase - Math.round(sh * 0.55), Math.max(2, Math.round(sw * 0.2)), Math.max(2, Math.round(sh * 0.3)));
+    // una viga del techo, caída adentro
+    ctx.strokeStyle = g(0.02);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx + sw * 0.08, mbase - sh * 0.95);
+    ctx.lineTo(sx + sw * 0.66, mbase - sh * 0.08);
+    ctx.stroke();
+    ctx.fillStyle = g(0.15);
+    for (let i = 0; i < 9; i++) {
+      const x = sx - sw * 0.1 + sw * 1.25 * hash(i * 2.9 + 1);
+      const r = Math.max(1, sh * 0.1 * (0.5 + hash(i * 7.1)));
+      ctx.beginPath();
+      ctx.moveTo(x - r, mbase + 1);
+      ctx.lineTo(x, mbase - r);
+      ctx.lineTo(x + r, mbase + 1);
+      ctx.fill();
+    }
   }
 
   hangarRuin(ctx, L, T);
