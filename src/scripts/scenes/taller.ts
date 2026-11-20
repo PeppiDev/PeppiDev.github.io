@@ -492,18 +492,18 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   windowPane(ctx, win, 2, 2, env.daylight);
   {
     // el esqueleto: cruza el ventanal de izquierda a derecha, por detrás de los palillos
-    const k = (t - fx.bones) / 2.1;
+    const k = (t - fx.bones) / 1.25;
     if (k > 0 && k < 1) {
       const wx = Math.round(win.x);
       const wy = Math.round(win.y);
       const wh = Math.round(win.h);
       const vis = Math.min(W, win.x + win.w) - win.x;
-      const sh = win.h * 0.6; // la cabeza queda bajo la barra de arriba, no detrás
+      const sh = win.h * 1.3; // tamaño natural: se ve de la cadera hacia arriba, el resto lo tapa el muro
       ctx.save();
       ctx.beginPath();
       ctx.rect(wx, wy, Math.round(win.w), wh);
       ctx.clip();
-      skeleton(ctx, win.x - sh * 0.5 + (vis + sh) * k, win.y + win.h * 0.99, sh, t * 19);
+      skeleton(ctx, win.x - sh * 0.5 + (vis + sh) * k, win.y + win.h * 1.02 + sh * 0.46, sh, t * 21);
       ctx.restore();
       ctx.fillStyle = g(0.1 + 0.3 * env.daylight);
       ctx.fillRect(Math.round(win.x + win.w / 2) - 1, wy, 2, wh);
