@@ -210,8 +210,9 @@ function pressKey(i: number) {
   if (i < 0) return;
   taller.press(i);
   audio.key();
-  written = (written + taller.charOf(i)).slice(-7);
-  if (written === 'TRUE ME') descend();
+  written = (written + taller.charOf(i)).slice(-9);
+  if (written.endsWith('TRUE ME')) descend();
+  if (written.endsWith('ESQUELETO') || written.endsWith('SKELETON')) taller.bones();
 }
 
 // ── Lámpara del escritorio ───────────────────────────────────────────────

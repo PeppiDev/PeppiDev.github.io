@@ -37,7 +37,9 @@ export const SPACE = CHARS.length;
 export const charOf = (i: number) => (i === SPACE ? ' ' : (CHARS[i] ?? ''));
 
 /** Estado vivo de la máquina: cuándo bajó cada tecla y dónde va el carro (-0.5..0.5). */
-export const fx = { down: new Array<number>(SPACE + 1).fill(-9), carriage: 0 };
+export const fx = { down: new Array<number>(SPACE + 1).fill(-9), carriage: 0, bones: -9 };
+/** Alguien pasa corriendo por fuera del ventanal. */
+export const bones = () => (fx.bones = performance.now() / 1000);
 
 /** Cuánto se desplaza el carro, en píxeles del lienzo. */
 export const carriageDx = (L: Layout) => fx.carriage * L.tw * 0.1;
@@ -421,6 +423,62 @@ function mug(ctx: CanvasRenderingContext2D, cx: number, by: number, r: number) {
   ctx.fill();
 }
 
+/** Esqueleto a toda carrera, de perfil: `h` de alto, pies en (x, y), `ph` la fase de la zancada. */
+function skeleton(ctx: CanvasRenderingContext2D, x: number, y0: number, h: number, ph: number) {
+  const y = y0 - Math.abs(Math.sin(ph)) * h * 0.05;
+  const leg = h * 0.24;
+  const arm = h * 0.17;
+  const hip: [number, number] = [x, y - h * 0.46];
+  const neck: [number, number] = [x + h * 0.13, y - h * 0.8];
+  const head: [number, number] = [x + h * 0.2, y - h * 0.9];
+  const seg = (p: [number, number], a: number, l: number): [number, number] => [p[0] + Math.sin(a) * l, p[1] + Math.cos(a) * l];
+  const limbs: [number, number][][] = [];
+  for (const side of [0, Math.PI]) {
+    const a = Math.sin(ph + side) * 1.05;
+    const knee = seg(hip, a, leg);
+    const foot = seg(knee, a - 0.25 - 1.3 * Math.max(0, Math.cos(ph + side)), leg);
+    limbs.push([hip, knee, foot, [foot[0] + h * 0.06, foot[1]]]);
+    const b = -Math.sin(ph + side) * 1.2;
+    const elbow = seg(neck, b, arm);
+    limbs.push([neck, elbow, seg(elbow, b + 1.5, arm)]);
+  }
+  const r = h * 0.095;
+  // dos pasadas: contorno oscuro y hueso claro encima
+  for (const [tone, grow] of [[0, 2], [0.97, 0]] as const) {
+    ctx.strokeStyle = ctx.fillStyle = g(tone);
+    ctx.lineWidth = Math.max(1.5, h * 0.035) + grow;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (const l of limbs) l.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])));
+    ctx.moveTo(hip[0], hip[1]);
+    ctx.lineTo(neck[0], neck[1]);
+    // costillas y pelvis
+    for (let i = 1; i <= 3; i++) {
+      const cx = neck[0] + (hip[0] - neck[0]) * i * 0.2;
+      const cy = neck[1] + (hip[1] - neck[1]) * i * 0.2;
+      ctx.moveTo(cx - h * 0.055, cy + h * 0.015);
+      ctx.lineTo(cx + h * 0.085, cy - h * 0.01);
+    }
+    ctx.moveTo(hip[0] - h * 0.05, hip[1]);
+    ctx.lineTo(hip[0] + h * 0.05, hip[1]);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(head[0], head[1], r + grow / 2, 0, 7);
+    ctx.fill();
+    ctx.fillRect(Math.round(head[0] - r * 0.1 - grow / 2), Math.round(head[1] + r * 0.5), Math.round(r * 0.95 + grow), Math.round(r * 0.75 + grow / 2));
+  }
+  ctx.lineWidth = 1;
+  ctx.lineCap = 'butt';
+  ctx.lineJoin = 'miter';
+  // cuenca, nariz y dientes
+  ctx.fillStyle = g(0);
+  const e = Math.max(2, Math.round(r * 0.5));
+  ctx.fillRect(Math.round(head[0] + r * 0.15), Math.round(head[1] - r * 0.35), e, e);
+  ctx.fillRect(Math.round(head[0] + r * 0.8), Math.round(head[1] + r * 0.2), 1, Math.max(1, Math.round(r * 0.3)));
+  for (let i = 0; i < 3; i++) ctx.fillRect(Math.round(head[0] + r * 0.1 + i * 2), Math.round(head[1] + r * 0.85), 1, Math.max(1, Math.round(r * 0.35)));
+}
+
 export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
   const L = layout(W, H);
   const { v } = L;
@@ -432,6 +490,26 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   // Ventanal del hangar, recortado por el borde
   const win: Rect = { x: W * (v.port ? 0.74 : 0.8), y: -S * 0.04, w: W * 0.3, h: S * 0.28 };
   windowPane(ctx, win, 2, 2, env.daylight);
+  {
+    // el esqueleto: cruza el ventanal de izquierda a derecha, por detrás de los palillos
+    const k = (t - fx.bones) / 2.1;
+    if (k > 0 && k < 1) {
+      const wx = Math.round(win.x);
+      const wy = Math.round(win.y);
+      const wh = Math.round(win.h);
+      const vis = Math.min(W, win.x + win.w) - win.x;
+      const sh = win.h * 0.6; // la cabeza queda bajo la barra de arriba, no detrás
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(wx, wy, Math.round(win.w), wh);
+      ctx.clip();
+      skeleton(ctx, win.x - sh * 0.5 + (vis + sh) * k, win.y + win.h * 0.99, sh, t * 19);
+      ctx.restore();
+      ctx.fillStyle = g(0.1 + 0.3 * env.daylight);
+      ctx.fillRect(Math.round(win.x + win.w / 2) - 1, wy, 2, wh);
+      ctx.fillRect(wx, Math.round(win.y + win.h / 2) - 1, Math.round(win.w), 2);
+    }
+  }
   if (env.rain > 0) {
     ctx.save();
     ctx.beginPath();
