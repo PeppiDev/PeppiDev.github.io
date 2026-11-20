@@ -8,15 +8,102 @@ let windFilter: BiquadFilterNode;
 let drone: GainNode;
 let on = true;
 
+// corte del viento: abierto afuera, amortiguado puertas adentro
+const WIND_OUT = 1700;
+const WIND_IN = 260;
+
+/** Ruido rosa en bucle: las puntas se funden entre sí para que la vuelta no haga clic. */
 function noiseBuffer(ctx: AudioContext, seconds: number) {
-  const buf = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
+  const n = Math.floor(ctx.sampleRate * seconds);
+  const fade = Math.floor(ctx.sampleRate * 0.6);
+  const raw = new Float32Array(n + fade);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0; // prettier-ignore
+  for (let i = 0; i < raw.length; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + w * 0.0555179;
+    b1 = 0.99332 * b1 + w * 0.0750759;
+    b2 = 0.969 * b2 + w * 0.153852;
+    b3 = 0.8665 * b3 + w * 0.3104856;
+    b4 = 0.55 * b4 + w * 0.5329522;
+    b5 = -0.7616 * b5 - w * 0.016898;
+    raw[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+    b6 = w * 0.115926;
+  }
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
   const d = buf.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < d.length; i++) {
-    last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; // ruido marrón
-    d[i] = last * 3.5;
+  d.set(raw.subarray(0, n));
+  for (let i = 0; i < fade; i++) {
+    const k = i / fade;
+    d[i] = raw[i] * Math.sqrt(k) + raw[n + i] * Math.sqrt(1 - k);
   }
   return buf;
+}
+
+/** Oscilador lento que mueve un parámetro: así el viento respira en vez de quedarse fijo. */
+function sway(ctx: AudioContext, hz: number, depth: number, ...targets: AudioParam[]) {
+  const o = ctx.createOscillator();
+  o.frequency.value = hz;
+  const g = ctx.createGain();
+  g.gain.value = depth;
+  o.connect(g);
+  for (const t of targets) g.connect(t);
+  o.start();
+  return g;
+}
+
+/** Viento: un fondo grave y parejo, ráfagas que suben y bajan de tono y de fuerza
+ *  (tres vaivenes de períodos que no calzan, para que nunca se repita igual), y un
+ *  poco de aire agudo que solo se oye afuera. */
+function buildWind(ctx: AudioContext, dest: AudioNode) {
+  // nivel calzado con el del viento anterior
+  const out = ctx.createGain();
+  out.gain.value = 0.72;
+  out.connect(dest);
+  const loop = (seconds: number) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(ctx, seconds);
+    src.loop = true;
+    src.start();
+    return src;
+  };
+  const a = loop(11);
+  const b = loop(13);
+
+  // fondo
+  const bodyLp = ctx.createBiquadFilter();
+  bodyLp.type = 'lowpass';
+  bodyLp.frequency.value = 300;
+  bodyLp.Q.value = 0.4;
+  const body = ctx.createGain();
+  body.gain.value = 1.5;
+  a.connect(bodyLp).connect(body).connect(out);
+  sway(ctx, 0.047, 0.4, body.gain);
+
+  // ráfagas
+  const gustBp = ctx.createBiquadFilter();
+  gustBp.type = 'bandpass';
+  gustBp.frequency.value = 430;
+  gustBp.Q.value = 0.8;
+  const gust = ctx.createGain();
+  gust.gain.value = 1.1;
+  const pan = ctx.createStereoPanner();
+  b.connect(gustBp).connect(gust).connect(pan).connect(out);
+  // la misma ráfaga sube el tono y la fuerza a la vez
+  for (const [hz, f, v] of [[0.083, 150, 0.5], [0.031, 90, 0.3], [0.137, 50, 0.16]] as const) {
+    sway(ctx, hz, f, gustBp.frequency);
+    sway(ctx, hz, v, gust.gain);
+  }
+  sway(ctx, 0.021, 0.45, pan.pan);
+
+  // aire
+  const airBp = ctx.createBiquadFilter();
+  airBp.type = 'bandpass';
+  airBp.frequency.value = 1500;
+  airBp.Q.value = 0.5;
+  const air = ctx.createGain();
+  air.gain.value = 0.16;
+  b.connect(airBp).connect(air).connect(out);
+  sway(ctx, 0.083, 0.1, air.gain);
 }
 
 function init() {
@@ -25,16 +112,14 @@ function init() {
   master.gain.value = 0;
   master.connect(ac.destination);
 
-  const src = ac.createBufferSource();
-  src.buffer = noiseBuffer(ac, 4);
-  src.loop = true;
   windFilter = ac.createBiquadFilter();
   windFilter.type = 'lowpass';
-  windFilter.frequency.value = 700;
+  windFilter.frequency.value = WIND_OUT;
+  windFilter.Q.value = 0.3;
   wind = ac.createGain();
   wind.gain.value = 0.2;
-  src.connect(windFilter).connect(wind).connect(master);
-  src.start();
+  buildWind(ac, windFilter);
+  windFilter.connect(wind).connect(master);
 
   drone = ac.createGain();
   drone.gain.value = 0;
@@ -78,7 +163,7 @@ export function ambience(scene: string) {
   if (!ac) return;
   const t = ac.currentTime;
   const inside = scene !== 'exterior';
-  windFilter.frequency.setTargetAtTime(inside ? 180 : 700, t, 0.4);
+  windFilter.frequency.setTargetAtTime(inside ? WIND_IN : WIND_OUT, t, 0.4);
   wind.gain.setTargetAtTime(scene === 'bunker' ? 0.06 : inside ? 0.3 : 0.2, t, 0.4);
   // motores del dirigible; bajo tierra, apenas el zumbido del generador
   drone.gain.setTargetAtTime(scene === 'lz20' ? 0.05 : scene === 'bunker' ? 0.022 : 0, t, 0.6);
