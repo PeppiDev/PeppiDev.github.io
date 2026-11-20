@@ -9,7 +9,7 @@ import type { Env, Rect } from './types';
  * p: 0‥1 caminar hacia la puerta · 1‥2 se abre · 2‥3 bajar la escalera · ≥3 el cuarto.
  * hit: cuándo molestaron al del sillón.
  */
-export const fx = { p: 3, hit: -9 };
+export const fx = { p: 3, hit: -9, run: false };
 export const poke = () => (fx.hit = performance.now() / 1000);
 
 export const horizon = (_W: number, H: number) => H * 0.5;
@@ -52,7 +52,7 @@ function door(ctx: CanvasRenderingContext2D, W: number, H: number, p: number) {
   const walk = ease(clamp(p));
   const open = clamp(p - 1);
   const z = 0.42 + 0.72 * walk;
-  const bob = p < 1 ? Math.abs(Math.sin(p * Math.PI * 6)) * H * 0.014 : 0;
+  const bob = p < 1 ? Math.abs(Math.sin(p * Math.PI * (fx.run ? 8 : 6))) * H * (fx.run ? 0.03 : 0.014) : 0;
   ctx.fillStyle = g(0.03);
   ctx.fillRect(0, 0, W, H);
   ctx.save();

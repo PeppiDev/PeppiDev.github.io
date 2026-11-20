@@ -37,7 +37,15 @@ export const SPACE = CHARS.length;
 export const charOf = (i: number) => (i === SPACE ? ' ' : (CHARS[i] ?? ''));
 
 /** Estado vivo de la máquina: cuándo bajó cada tecla y dónde va el carro (-0.5..0.5). */
-export const fx = { down: new Array<number>(SPACE + 1).fill(-9), carriage: 0, bones: -9 };
+export const fx = { down: new Array<number>(SPACE + 1).fill(-9), carriage: 0, bones: -9, nuke: -9 };
+/** Fin del mundo: el destello y el hongo a lo lejos. */
+export const nuke = () => (fx.nuke = performance.now() / 1000);
+/** Remezón cuando llega la onda (en fracción del ancho). */
+export function shake(t: number) {
+  const k = t - fx.nuke - 1.3;
+  if (k < 0 || k > 2.6) return 0;
+  return Math.sin(k * 47) * Math.sin(k * 31 + 1) * 0.012 * (1 - k / 2.6);
+}
 /** Alguien pasa corriendo por fuera del ventanal. */
 export const bones = () => (fx.bones = performance.now() / 1000);
 
@@ -490,6 +498,7 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   // Ventanal del hangar, recortado por el borde
   const win: Rect = { x: W * (v.port ? 0.74 : 0.8), y: -S * 0.04, w: W * 0.3, h: S * 0.28 };
   windowPane(ctx, win, 2, 2, env.daylight);
+  let bars = false;
   {
     // el esqueleto: cruza el ventanal de izquierda a derecha, por detrás de los palillos
     const k = (t - fx.bones) / 1.25;
@@ -505,10 +514,73 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
       ctx.clip();
       skeleton(ctx, win.x - sh * 0.5 + (vis + sh) * k, win.y + win.h * 1.02 + sh * 0.46, sh, t * 21);
       ctx.restore();
-      ctx.fillStyle = g(0.1 + 0.3 * env.daylight);
-      ctx.fillRect(Math.round(win.x + win.w / 2) - 1, wy, 2, wh);
-      ctx.fillRect(wx, Math.round(win.y + win.h / 2) - 1, Math.round(win.w), 2);
+      bars = true;
     }
+  }
+  const nk = t - fx.nuke;
+  if (nk > 0 && nk < 30) {
+    // el hongo: bola de fuego que sube, tallo, anillo de condensación y el horizonte a contraluz
+    bars = true;
+    const vis = Math.min(W, win.x + win.w) - win.x;
+    const cx = win.x + vis * 0.45;
+    const gy = win.y + win.h * 0.9;
+    const e = 1 - Math.exp(-nk / 1.1);
+    const hot = Math.max(0.2, 1 - nk / 3.5);
+    const rx = win.h * 0.3 * e;
+    const top = gy - win.h * 0.62 * e;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(Math.round(win.x), Math.round(win.y), Math.round(win.w), Math.round(win.h));
+    ctx.clip();
+    ctx.fillStyle = g(0.3, hot * 0.6, 0.5);
+    ctx.beginPath();
+    ctx.ellipse(cx, gy, rx * 1.5, win.h * 0.07 * e, 0, 0, 7);
+    ctx.fill();
+    const stem = ctx.createLinearGradient(cx - rx * 0.3, 0, cx + rx * 0.3, 0);
+    stem.addColorStop(0, g(0.8, hot));
+    stem.addColorStop(1, g(0.15, hot * 0.5));
+    ctx.fillStyle = stem;
+    ctx.beginPath();
+    ctx.moveTo(cx - rx * 0.42, gy);
+    ctx.quadraticCurveTo(cx - rx * 0.12, (gy + top) / 2, cx - rx * 0.3, top);
+    ctx.lineTo(cx + rx * 0.3, top);
+    ctx.quadraticCurveTo(cx + rx * 0.12, (gy + top) / 2, cx + rx * 0.42, gy);
+    ctx.fill();
+    ctx.fillStyle = g(0.2, hot * 0.5);
+    ctx.beginPath();
+    ctx.ellipse(cx, top + rx * 0.16, rx * 0.9, rx * 0.4, 0, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = g(0.9, hot);
+    for (const [ox, oy, r] of [[0, -0.1, 1], [-0.55, 0.08, 0.6], [0.55, 0.06, 0.62], [-0.2, -0.38, 0.6], [0.28, -0.34, 0.55]]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + ox * rx, top + oy * rx, r * rx * 0.75, r * rx * 0.5, 0, 0, 7);
+      ctx.fill();
+    }
+    ctx.strokeStyle = g(0.95, 0, 0.4);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(cx, gy - win.h * 0.3 * e, rx * (0.6 + nk * 0.5), rx * 0.1, 0, 0, 7);
+    ctx.stroke();
+    ctx.fillStyle = g(0.03);
+    ctx.beginPath();
+    ctx.moveTo(win.x, win.y + win.h);
+    for (let x = 0; x <= win.w; x += 2) ctx.lineTo(win.x + x, gy - Math.abs(Math.sin(x * 0.21) + Math.sin(x * 0.083)) * win.h * 0.02);
+    ctx.lineTo(win.x + win.w, win.y + win.h);
+    ctx.fill();
+    // el destello
+    const flash = Math.max(0, 1 - nk / 0.7);
+    if (flash > 0) {
+      ctx.globalAlpha = flash;
+      ctx.fillStyle = g(1, 0.5);
+      ctx.fillRect(win.x, win.y, win.w, win.h);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+  if (bars) {
+    ctx.fillStyle = g(0.1 + 0.3 * env.daylight);
+    ctx.fillRect(Math.round(win.x + win.w / 2) - 1, Math.round(win.y), 2, Math.round(win.h));
+    ctx.fillRect(Math.round(win.x), Math.round(win.y + win.h / 2) - 1, Math.round(win.w), 2);
   }
   if (env.rain > 0) {
     ctx.save();
@@ -545,5 +617,12 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   if (v.port) paper(ctx, L.sheet1, W * 0.02);
   typewriter(ctx, L, t);
   mug(ctx, W * (v.port ? 0.86 : 0.87), S * (v.port ? 0.93 : 0.9), S * 0.034);
-  lamp(ctx, L.lamp, env.lamp);
+  lamp(ctx, L.lamp, env.lamp);  if (nk > 0 && nk < 1.2) {
+    // la luz entra de golpe y baña todo el taller
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = `rgba(255,200,0,${(0.8 * (1 - nk / 1.2)).toFixed(3)})`;
+    ctx.fillRect(-W, -H, W * 3, H * 3);
+    ctx.restore();
+  }
 }

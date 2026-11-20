@@ -411,6 +411,13 @@ export function creak(seconds = 0.9) {
 }
 
 /** Cede el cerrojo: golpe de acero con cola. */
+/** Explosión lejana: el chasquido y después el trueno largo que llega rodando. */
+export function boom() {
+  if (!ac || !on) return;
+  burst(0.35, 'lowpass', 2200, 150, 0.7);
+  burst(4.5, 'lowpass', 260, 32, 1.5, 0.7, 0.25);
+}
+
 export function clank() {
   if (!ac || !on) return;
   const t = ac.currentTime;

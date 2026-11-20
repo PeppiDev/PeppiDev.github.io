@@ -86,6 +86,8 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
           <a class="spot" data-to="contacto" href="#/contacto">
             <span class="tag"><b>Radio</b> Contacto</span>
           </a>
+          <button class="hot" id="survivor" type="button" aria-label="Alguien con máscara antigás: salúdalo"></button>
+          <p class="mono say" id="say4" role="status"></p>
         </section>
 
         <!-- Taller -->
@@ -681,6 +683,14 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
   }
   [data-look] .board > * {
     pointer-events: none;
+  }
+  /* después del fin del mundo: el sobreviviente en la pista */
+  #survivor {
+    display: none;
+    z-index: 2;
+  }
+  [data-doom] #survivor {
+    display: block;
   }
   /* estribor: lámpara, jarro y prismáticos; aparecen cuando termina el giro */
   .side {

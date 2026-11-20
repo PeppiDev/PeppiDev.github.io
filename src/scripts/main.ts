@@ -210,8 +210,9 @@ function pressKey(i: number) {
   if (i < 0) return;
   taller.press(i);
   audio.key();
-  written = (written + taller.charOf(i)).slice(-9);
+  written = (written + taller.charOf(i)).slice(-16);
   if (written.endsWith('TRUE ME')) descend();
+  if (written.endsWith('FIN DEL MUNDO') || written.endsWith('END OF THE WORLD')) doom();
   if (written.endsWith('ESQUELETO') || written.endsWith('SKELETON')) taller.bones();
 }
 
@@ -268,6 +269,10 @@ function place() {
   const say = $('#say').style;
   say.left = `${(C.pilot.x + C.pilot.w / 2) * k}px`;
   say.top = `${C.pilot.y * k - 10}px`;
+  put('#survivor', L.me);
+  const say4 = $('#say4').style;
+  say4.left = `${(L.me.x + L.me.w / 2) * k}px`;
+  say4.top = `${L.me.y * k - 6}px`;
   const S = estribor.layout(R.W, R.H);
   put('#lampS', S.lamp);
   put('#mug', S.mug);
@@ -324,6 +329,7 @@ function go(to: SceneId, instant = false) {
     state.rise = 0;
     bunker.fx.p = 3;
     written = '';
+    $('#say4').classList.remove('on');
     state.scene = to;
     state.door = 0.1;
     if (to === 'exterior' && from !== 'exterior') {
@@ -381,11 +387,34 @@ function bunkerMusic() {
   if (state.scene === 'bunker' && bunker.fx.p >= 2) audio.music(true, bunker.fx.p >= 3 ? 1 : 0);
 }
 
-function descend() {
+/** "fin del mundo": el hongo en la ventana, y al búnker corriendo. Arriba ya nada queda igual. */
+let dooming = 0;
+function doom() {
+  if (state.scene !== 'taller' || ui.classList.contains('moving')) return;
+  written = '';
+  if (still) return descend(true);
+  ui.classList.add('moving');
+  taller.nuke();
+  clearTimeout(dooming);
+  window.setTimeout(() => state.scene === 'taller' && audio.boom(), 1300);
+  dooming = window.setTimeout(() => {
+    ui.classList.remove('moving');
+    descend(true);
+  }, 2300);
+}
+
+function descend(run = false) {
   if (state.scene !== 'taller') return;
   written = '';
   tl?.kill();
+  bunker.fx.run = run;
+  const k = run ? 0.42 : 1;
   const arrive = () => {
+    if (run) {
+      exterior.fx.doom = true;
+      ui.dataset.doom = '';
+      place();
+    }
     state.scene = 'bunker';
     state.rise = 0;
     show('bunker');
@@ -404,13 +433,13 @@ function descend() {
     return;
   }
   const P = bunker.fx;
-  const WALK = 2.7;
-  const OPEN = 2.3;
-  const DOWN = 3.4;
+  const WALK = 2.7 * k;
+  const OPEN = 2.3 * (run ? 0.6 : 1);
+  const DOWN = 3.4 * k;
   // se levanta: la silla se corre y la mesa queda abajo
   tl.call(() => audio.rise(), [], 0.15)
-    .to(state, { rise: 1, duration: 1.1, ease: 'power2.inOut' }, 0.15)
-    .to(state, { fade: 1, duration: 0.4, ease: 'none' }, 0.85)
+    .to(state, { rise: 1, duration: 1.1 * k, ease: 'power2.inOut' }, 0.15)
+    .to(state, { fade: 1, duration: 0.4 * k, ease: 'none' }, 0.15 + 0.7 * k)
     .call(() => {
       ui.classList.add('moving');
       P.p = 0;
@@ -474,6 +503,39 @@ document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
     talk = talkInto(say, text, talk);
     clearTimeout(hide);
     hide = window.setTimeout(() => say.classList.remove('on'), 2400 + text.length * 80);
+  });
+}
+
+// Arriba, después de todo: el mismo dueño de casa, con máscara y en paz
+{
+  const lines = [
+    tr('Al menos no tendré que trabajar.', 'At least I won’t have to work.'),
+    tr('Qué silencio. Por fin.', 'So quiet. At last.'),
+    tr('Conservas para tres años y ningún correo pendiente.', 'Three years of canned food and not a single unread email.'),
+    tr('Agua, fuego, refugio. La lista de pendientes nunca fue tan corta.', 'Water, fire, shelter. The to-do list was never this short.'),
+    tr('No sé por qué, pero aquí duermo mejor.', 'I don’t know why, but I sleep better out here.'),
+    tr('Se acabó el mundo y lo primero que sentí fue paz. Raro, ¿no?', 'The world ended and the first thing I felt was peace. Odd, isn’t it?'),
+    tr('El zepelín se arregla. Tiempo es lo que sobra.', 'The zeppelin can be fixed. Time is the one thing I have plenty of.'),
+    tr('La radio todavía agarra estática. Buena compañía.', 'The radio still picks up static. Good company.'),
+    tr('Rocky está bien. Fue el primero en bajar al búnker.', 'Rocky’s fine. He was the first one down the bunker.'),
+    tr('Regla uno: filtro limpio. Regla dos: revisar la regla uno.', 'Rule one: clean filter. Rule two: check rule one.'),
+    tr('Nadie me pregunta para cuándo está listo. Está listo cuando esté.', 'Nobody asks when it’ll be done. It’s done when it’s done.'),
+    tr('Con un cuchillo, una cantimplora y un cuaderno me alcanza.', 'A knife, a canteen and a notebook is all I need.'),
+  ];
+  const say = $('#say4');
+  let lastLine = -1;
+  let hide = 0;
+  let talk = 0;
+  $('#survivor').addEventListener('click', () => {
+    exterior.poke();
+    let i = Math.floor(Math.random() * (lines.length - 1));
+    if (i >= lastLine) i++;
+    if (lastLine < 0) i = 0; // lo primero, siempre, lo del trabajo
+    lastLine = i;
+    const text = lines[i];
+    talk = talkInto(say, text, talk);
+    clearTimeout(hide);
+    hide = window.setTimeout(() => say.classList.remove('on'), 2400 + text.length * 70);
   });
 }
 
@@ -800,7 +862,7 @@ function frame(now: number) {
   const sun = sunPosition();
   const sky: Sky = {
     horizon: hz,
-    cover: cond.cover,
+    cover: exterior.fx.doom && state.scene === 'exterior' ? 1 : cond.cover,
     drift: drift0 + (still ? 0 : t * (state.scene === 'lz20' ? 0.03 : 0.008)),
     sunX: W * sun.x,
     sunY: hz - sun.alt * hz * 0.86 + (sun.day ? hz * 0.03 : 0),
@@ -827,7 +889,8 @@ function frame(now: number) {
     sky.horizon = H / 2 + (hz - fy) * z;
   }
   const up = state.scene === 'taller' ? state.rise * H * 0.34 : 0;
-  const rise = up ? `translateY(${(up * R.scale).toFixed(1)}px)` : '';
+  const quake = state.scene === 'taller' && !still ? Math.round(taller.shake(t) * W) : 0;
+  const rise = up || quake ? `translate(${(quake * R.scale).toFixed(1)}px,${(up * R.scale).toFixed(1)}px)` : '';
   if (rise !== lastRise) tallerEl.style.transform = lastRise = rise;
   if (up) {
     // de pie: el escritorio se va hacia abajo y arriba queda el muro en penumbra
@@ -835,6 +898,7 @@ function frame(now: number) {
     ctx.fillRect(0, 0, W, H);
     ctx.translate(0, up);
   }
+  if (quake) ctx.translate(quake, 0);
   if (state.scene === 'taller') {
     // el papel viaja con el carro; el reloj da el tic y el tac
     const car = (taller.carriageDx(taller.layout(W, H)) * R.scale).toFixed(1);
