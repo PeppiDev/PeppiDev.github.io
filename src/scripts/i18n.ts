@@ -13,6 +13,7 @@ const TEXT: [string, string | string[]][] = [
   ['.hint', 'Pick a place to enter'],
   ['.spot[data-to] .tag', ['<b>LZ 20</b> Projects · Sound3ds', '<b>Hangar</b> About me', '<b>Radio</b> Contact']],
   ['[data-scene="taller"] > .back', '← Leave the hangar'],
+  ['#look', 'Look to starboard →'],
   ['[data-lamp] b', ['Lamp', 'Lamp']],
   ['#sheet1 .kicker', 'Hangar · workshop'],
   ['#sheet1 h2', 'About me'],
@@ -29,7 +30,7 @@ const TEXT: [string, string | string[]][] = [
     '#sheet2 p[data-type]',
     'I’m from Chillán. I left a technical high school with a programmer’s diploma, and I’m still studying today — cybersecurity this time. In between, I keep going back to the same saga, as I have for years: Metro. Maybe because it’s the closest thing, in video game form, to what I truly like: mechanisms and instruments, things you understand better the longer you look at them.',
   ],
-  ['[data-scene="lz20"] > .back', '← Disembark'],
+  ['[data-scene="lz20"] > a.back', '← Disembark'],
   ['#log header .mono', 'Logbook · LZ 20'],
   [
     '#log p[data-type]',

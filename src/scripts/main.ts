@@ -311,6 +311,7 @@ function go(to: SceneId, instant = false) {
     resetZoom();
     pokes = 0; // la paciencia del timonel se renueva al salir de la cabina
     cabina.calm();
+    lookOut(false);
     state.rise = 0;
     bunker.fx.p = 3;
     written = '';
@@ -467,8 +468,37 @@ document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
   });
 }
 
+// ── Cabina: girar la vista al ventanal de estribor y volver al timón ──────
+
+function lookOut(on: boolean) {
+  cabina.look.to = on ? 1 : 0;
+  const sec = $('[data-scene="lz20"]');
+  on ? sec.setAttribute('data-look', '') : sec.removeAttribute('data-look');
+  const b = $('#look');
+  b.textContent = on ? tr('← Volver al timón', '← Back to the helm') : tr('Mirar a estribor →', 'Look to starboard →');
+  b.setAttribute('aria-pressed', String(on));
+}
+$('#look').addEventListener('click', () => lookOut(cabina.look.to === 0));
+{
+  // deslizar el dedo: hacia la izquierda se mira afuera, hacia la derecha se vuelve
+  let sx = 0;
+  let sy = 0;
+  addEventListener('touchstart', (e) => ([sx, sy] = [e.touches[0].clientX, e.touches[0].clientY]), { passive: true });
+  addEventListener(
+    'touchend',
+    (e) => {
+      if (state.scene !== 'lz20') return;
+      const dx = e.changedTouches[0].clientX - sx;
+      const dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) lookOut(dx < 0);
+    },
+    { passive: true },
+  );
+}
+
 addEventListener('hashchange', () => go(route()));
 addEventListener('keydown', (e) => {
+  if (state.scene === 'lz20' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.metaKey && !e.altKey) lookOut(e.key === 'ArrowRight');
   if (e.key === 'Escape' && zoom === 'frame') return closeFrame();
   if (e.key === 'Escape' && state.scene !== 'exterior' && !zoom) location.hash = '#/';
   // el teclado de verdad también mueve las teclas de la máquina

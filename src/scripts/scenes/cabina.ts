@@ -5,6 +5,7 @@
 
 import { fbm, g } from '../dither';
 import { rain } from './exterior';
+import * as estribor from './estribor';
 import type { Env, Rect } from './types';
 
 export const DIALS = 6;
@@ -48,11 +49,45 @@ export const shoot = () => (fx.shoot = performance.now() / 1000);
 export const calm = () => (fx.shoot = -9);
 export const poke = () => (fx.hit = performance.now() / 1000);
 
-export const horizon = (W: number, H: number) => layout(W, H).hz;
+/** Hacia dónde se mira: 0 al timón, 1 por el ventanal de estribor. `p` va detrás, suavizado. */
+export const look = { to: 0, p: 0, last: 0 };
+const ease = (x: number) => x * x * (3 - 2 * x);
+
+export const horizon = (W: number, H: number) => {
+  const a = layout(W, H).hz;
+  return Math.round(a + (estribor.horizon(W, H) - a) * ease(look.p));
+};
+
+/** Girar la cabeza: la cabina se desliza hacia la izquierda y entra el costado de estribor. */
+export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
+  const dt = Math.min(0.1, Math.max(0, t - look.last));
+  look.last = t;
+  const step = env.still ? 1 : dt / 0.75;
+  look.p = look.to > look.p ? Math.min(look.to, look.p + step) : Math.max(look.to, look.p - step);
+  const off = Math.round(ease(look.p) * W);
+  if (off < W) {
+    ctx.save();
+    ctx.translate(-off, 0);
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+    helm(ctx, W, H, t, env);
+    ctx.restore();
+  }
+  if (off > 0) {
+    ctx.save();
+    ctx.translate(W - off, 0);
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+    estribor.draw(ctx, W, H, t, env);
+    ctx.restore();
+  }
+}
 
 type Pt = [number, number];
 
-export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
+function helm(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
   const L = layout(W, H);
   const { far, hz, vx, shelf0, shelf1 } = L;
   const fh = far.y1 - far.y0;

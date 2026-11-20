@@ -131,6 +131,7 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
         <!-- Cabina del LZ 20 -->
         <section data-scene="lz20" hidden>
           <a class="back mono floating" href="#/">← Desembarcar</a>
+          <button class="back mono floating" id="look" type="button" aria-pressed="false">Mirar a estribor →</button>
           <button class="hot" id="pilot" type="button" aria-label="El timonel: dale un golpecito"></button>
           <p class="mono say" id="say" role="status"></p>
           <div id="dials" aria-label="Instrumentos: datos del proyecto y condiciones en Chillán"></div>
@@ -648,6 +649,23 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
     left: clamp(1rem, 4vw, 3rem);
     top: 4.2rem;
     background: rgb(var(--ink) / 0.85);
+  }
+  .back.floating:hover {
+    background: var(--amber);
+  }
+  #look {
+    left: auto;
+    right: clamp(1rem, 4vw, 3rem);
+  }
+  [data-look] > :not(.back) {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  [data-scene='lz20'] > :not(.back) {
+    transition:
+      opacity 0.35s,
+      visibility 0.35s;
   }
   .channels {
     list-style: none;
