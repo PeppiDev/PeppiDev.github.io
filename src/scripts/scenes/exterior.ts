@@ -70,6 +70,8 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     ctx.fill();
   }
 
+  drawTown(ctx, L, W, H, env);
+
   // Campo
   const gg = ctx.createLinearGradient(0, hz, 0, H);
   gg.addColorStop(0, g(0.3));
@@ -77,6 +79,9 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   gg.addColorStop(1, g(0.04));
   ctx.fillStyle = gg;
   ctx.fillRect(0, hz, W, H - hz);
+  // la hilera de frutales al fondo del potrero
+  ctx.fillStyle = g(0.09);
+  for (let x = 0; x < W; x += 3) ctx.fillRect(x, hz, 2, Math.max(2, Math.round(H * 0.007)));
   // pista de maniobra frente al hangar
   ctx.fillStyle = g(0.3);
   ctx.beginPath();
@@ -86,6 +91,7 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   ctx.lineTo(L.hcx - L.hw * 0.95, H);
   ctx.fill();
 
+  drawRoadside(ctx, L, W, H);
   drawMast(ctx, L, t);
   drawHangar(ctx, L, env.door);
 
@@ -93,6 +99,205 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   drawLZ20(ctx, L.zcx, L.zcy + bob, L.zl, env.still ? 0 : t);
 
   if (env.rain > 0) rain(ctx, W, H, t, env.rain);
+}
+
+/** El pueblo en el horizonte, sacado de las afueras de Chillán: la cortina de cipreses,
+ *  el silo viejo de hormigón, la copa de agua y un par de casas bajas. */
+function drawTown(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, W: number, H: number, env: Env) {
+  const { hz, port } = L;
+  const night = env.daylight < 0.3;
+  const dark = g(0.06, 0, 0.1);
+
+  // cortina de árboles: cipreses en punta, con claros por donde asoma la cordillera
+  ctx.fillStyle = dark;
+  for (let x = 0; x < W; x++) {
+    const n = fbm((x / W) * 26 + 5.3, 2.3);
+    if (n < 0.4) continue;
+    const spike = Math.abs(Math.sin(x * 1.9) + Math.sin(x * 0.67)) * 0.5;
+    const h = Math.round(H * (0.006 + (n - 0.4) * 0.035 + spike * 0.012 * n));
+    ctx.fillRect(x, hz - h, 1, h + 1);
+  }
+  const blob = (x: number, y: number, r: number) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, 7);
+    ctx.fill();
+  };
+  /** árbol de copa redonda (los pinos viejos de la orilla del camino) */
+  const tree = (u: number, size: number) => {
+    const x = W * u;
+    const r = H * size;
+    ctx.fillStyle = dark;
+    ctx.fillRect(Math.round(x), Math.round(hz - r * 1.4), 1, Math.round(r * 1.4));
+    blob(x, hz - r * 1.9, r);
+    blob(x - r * 0.7, hz - r * 1.4, r * 0.75);
+    blob(x + r * 0.75, hz - r * 1.3, r * 0.7);
+  };
+  /** álamo: alto y angosto */
+  const poplar = (u: number, size: number) => {
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.ellipse(W * u, hz - H * size * 0.5, H * size * 0.14, H * size * 0.55, 0, 0, 7);
+    ctx.fill();
+  };
+  const house = (u: number, w: number, h: number) => {
+    const x = Math.round(W * u);
+    const hg = ctx.createLinearGradient(0, hz - h, 0, hz);
+    hg.addColorStop(0, g(0.6));
+    hg.addColorStop(1, g(0.25));
+    ctx.fillStyle = hg;
+    ctx.fillRect(x, hz - h, w, h + 1);
+    ctx.fillStyle = g(0.07);
+    ctx.beginPath();
+    ctx.moveTo(x - 2, hz - h);
+    ctx.lineTo(x + w * 0.5, hz - h * 1.7);
+    ctx.lineTo(x + w + 2, hz - h);
+    ctx.fill();
+    ctx.fillStyle = night ? g(0.9, 1) : g(0.1);
+    ctx.fillRect(x + Math.round(w * 0.6), hz - Math.round(h * 0.7), Math.max(1, Math.round(w * 0.16)), Math.max(1, Math.round(h * 0.4)));
+  };
+
+  const sx = Math.round(W * (port ? 0.3 : 0.555)); // el silo
+  const sh = Math.round(H * (port ? 0.06 : 0.09));
+  const sw = Math.max(5, Math.round(sh * 0.3));
+
+  for (const u of port ? [0.03, 0.42] : [0.03, 0.24, 0.47, 0.5]) poplar(u, port ? 0.04 : 0.05);
+  tree(port ? 0.4 : 0.6, port ? 0.014 : 0.019);
+  tree(port ? 0.06 : 0.31, 0.013);
+  house(port ? 0.33 : 0.572, Math.round(sh * 0.62), Math.round(sh * 0.2));
+  house(port ? 0.21 : 0.515, Math.round(sh * 0.5), Math.round(sh * 0.17));
+  if (!port) house(0.35, Math.round(sh * 0.7), Math.round(sh * 0.18));
+
+  // silo viejo: cilindro de hormigón con zunchos, la corona un poco más ancha y techo bajo
+  const top = hz - sh;
+  const body = ctx.createLinearGradient(sx, 0, sx + sw, 0);
+  body.addColorStop(0, g(0.9));
+  body.addColorStop(0.45, g(0.6));
+  body.addColorStop(1, g(0.2));
+  ctx.fillStyle = body;
+  ctx.fillRect(sx, top, sw, sh + 1);
+  ctx.fillStyle = g(0.15);
+  ctx.globalAlpha = 0.45;
+  for (let i = 1; i < 8; i++) ctx.fillRect(sx, Math.round(top + (sh * i) / 8), sw, 1);
+  ctx.fillRect(sx + Math.round(sw * 0.3), top + Math.round(sh * 0.25), 1, Math.round(sh * 0.4)); // chorreado
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = g(0.1);
+  ctx.fillRect(sx + Math.round(sw * 0.72), top, 1, sh); // escalera de gato
+  const capH = Math.max(3, Math.round(sh * 0.13));
+  const cap = ctx.createLinearGradient(sx - 1, 0, sx + sw + 1, 0);
+  cap.addColorStop(0, g(0.7));
+  cap.addColorStop(1, g(0.12));
+  ctx.fillStyle = cap;
+  ctx.fillRect(sx - 1, top - capH, sw + 2, capH);
+  ctx.fillStyle = g(0.1);
+  ctx.fillRect(sx - 1, top, sw + 2, 1);
+  ctx.beginPath();
+  ctx.moveTo(sx - 2, top - capH);
+  ctx.lineTo(sx + sw * 0.5, top - capH - Math.max(2, sh * 0.07));
+  ctx.lineTo(sx + sw + 2, top - capH);
+  ctx.fill();
+
+  // copa de agua: torre de celosía con su estanque
+  const wx = Math.round(W * (port ? 0.02 : 0.285));
+  const wh = Math.round(sh * 0.9);
+  const ww = Math.max(4, Math.round(wh * 0.2));
+  if (!port || wx > 2) {
+    ctx.strokeStyle = g(0.55, 0, 0.2);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const legTop = hz - wh * 0.72;
+    for (let i = 0; i < 3; i++) {
+      const ya = hz - ((hz - legTop) * i) / 3;
+      const yb = hz - ((hz - legTop) * (i + 1)) / 3;
+      ctx.moveTo(wx - ww, ya);
+      ctx.lineTo(wx + ww, yb);
+      ctx.moveTo(wx + ww, ya);
+      ctx.lineTo(wx - ww, yb);
+    }
+    ctx.moveTo(wx - ww, hz);
+    ctx.lineTo(wx - ww, legTop);
+    ctx.moveTo(wx + ww, hz);
+    ctx.lineTo(wx + ww, legTop);
+    ctx.stroke();
+    const tk = ctx.createLinearGradient(wx - ww, 0, wx + ww, 0);
+    tk.addColorStop(0, g(0.8));
+    tk.addColorStop(1, g(0.2));
+    ctx.fillStyle = tk;
+    ctx.fillRect(wx - ww - 1, Math.round(hz - wh), ww * 2 + 2, Math.round(wh * 0.28));
+    ctx.fillStyle = g(0.1);
+    ctx.beginPath();
+    ctx.moveTo(wx - ww - 2, Math.round(hz - wh));
+    ctx.lineTo(wx, hz - wh * 1.12);
+    ctx.lineTo(wx + ww + 2, Math.round(hz - wh));
+    ctx.fill();
+  }
+}
+
+/** Lo de la orilla del camino: la postación con sus cables y el cerco del potrero. */
+function drawRoadside(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, W: number, H: number) {
+  const { hz, hcx, hw, hbase } = L;
+  const depth = H - hz;
+  /** borde izquierdo de la pista a profundidad f (0 = horizonte, 1 = borde de abajo) */
+  const edge = (f: number) => {
+    const k = Math.max(0, (hz + depth * f - hbase) / (H - hbase));
+    return hcx - hw * (0.31 + 0.64 * k);
+  };
+
+  // postación a lo lejos, siguiendo el camino: postes de madera con cruceta y cables colgando
+  const [u0, u1] = L.port ? [0.04, 0.3] : [0.2, 0.53];
+  const tops: [number, number, number][] = [];
+  const N = L.port ? 4 : 6;
+  for (let i = 0; i < N; i++) {
+    const x = Math.round(W * (u0 + ((u1 - u0) * (i + 0.5)) / N));
+    const h = Math.round(H * (0.05 - 0.003 * i));
+    const arm = Math.max(2, Math.round(h * 0.16));
+    ctx.fillStyle = g(0.07);
+    ctx.fillRect(x, hz - h, 1, h + 2);
+    ctx.fillRect(x - arm, hz - h + 2, arm * 2 + 1, 1);
+    tops.push([x, hz - h + 2, arm]);
+  }
+  ctx.strokeStyle = g(0.1);
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  for (let i = 0; i + 1 < tops.length; i++) {
+    const [xa, ya, aa] = tops[i];
+    const [xb, yb, ab] = tops[i + 1];
+    for (const s of [-1, 1]) {
+      ctx.moveTo(xa + s * aa, ya);
+      ctx.quadraticCurveTo((xa + xb) / 2, (ya + yb) / 2 + H * 0.014, xb + s * ab, yb);
+    }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // cerco: estacas y dos hebras de alambre, con el esquinero apuntalado
+  const x1 = Math.min(W * 0.44, edge(0.3) - W * 0.1);
+  const fy = (x: number) => hz + depth * (0.5 - 0.2 * (x / x1));
+  const n = 9;
+  ctx.strokeStyle = g(0.55);
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  for (const k of [0.35, 0.75]) {
+    ctx.moveTo(0, fy(0) - H * 0.04 * k);
+    ctx.lineTo(x1, fy(x1) - H * 0.028 * k);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round((x1 * (i + 0.35)) / (n + 0.35));
+    const ph = Math.round(H * (0.04 - 0.012 * (x / x1)));
+    ctx.fillStyle = g(0.75);
+    ctx.fillRect(x, Math.round(fy(x)) - ph, 1, ph);
+    ctx.fillStyle = g(0.05);
+    ctx.fillRect(x + 1, Math.round(fy(x)) - ph, 1, ph);
+    if (i === n) {
+      ctx.strokeStyle = g(0.7);
+      ctx.beginPath();
+      ctx.moveTo(x, fy(x) - ph * 0.85);
+      ctx.lineTo(x - ph * 0.6, fy(x) + 1);
+      ctx.stroke();
+    }
+  }
 }
 
 function drawHangar(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, door: number) {
