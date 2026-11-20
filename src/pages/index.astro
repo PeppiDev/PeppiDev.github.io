@@ -132,6 +132,7 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
         <section data-scene="lz20" hidden>
           <a class="back mono floating" href="#/">← Desembarcar</a>
           <button class="back mono floating" id="look" type="button" aria-pressed="false">Mirar a estribor →</button>
+          <div class="board">
           <button class="hot" id="pilot" type="button" aria-label="El timonel: dale un golpecito"></button>
           <p class="mono say" id="say" role="status"></p>
           <div id="dials" aria-label="Instrumentos: datos del proyecto y condiciones en Chillán"></div>
@@ -155,6 +156,7 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
             <p class="mono stack">C · devkitPro · libctru · citro2d · libcurl · mbedTLS · MIT</p>
             <p><a class="mono" href={repo} rel="noopener">github.com/PeppiDev/Sound3ds →</a></p>
           </article>
+          </div>
         </section>
 
         <!-- Radio -->
@@ -657,13 +659,22 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
     left: auto;
     right: clamp(1rem, 4vw, 3rem);
   }
-  [data-scene='lz20'] > :not(.back) {
-    translate: var(--turn, 0px);
-  }
-  [data-look] > :not(.back) {
-    visibility: hidden;
+  /* el tablero gira con la cámara: main.ts le pone la misma perspectiva que al lienzo */
+  .board {
+    position: absolute;
+    inset: 0;
     pointer-events: none;
-    transition: visibility 0s 0.95s;
+    transform-origin: 50% 50%;
+  }
+  .board > * {
+    pointer-events: auto;
+  }
+  [data-look] .board {
+    visibility: hidden;
+    transition: visibility 0s 1.1s;
+  }
+  [data-look] .board > * {
+    pointer-events: none;
   }
   .channels {
     list-style: none;

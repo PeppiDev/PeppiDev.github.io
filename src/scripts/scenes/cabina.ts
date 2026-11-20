@@ -53,74 +53,89 @@ export const poke = () => (fx.hit = performance.now() / 1000);
 export const look = { to: 0, p: 0, last: 0 };
 const ease = (x: number) => x * x * (3 - 2 * x);
 
-/** Cuánto se ha corrido la cabina al girar la vista, en px del lienzo: la interfaz va con ella. */
-export const shift = { x: 0, y: 0 };
+/** Giro de la vista para la interfaz: ángulo en radianes y caída de la mirada en px del lienzo. */
+export const shift = { a: 0, y: 0 };
 
 export const horizon = (W: number, H: number) => {
   const a = layout(W, H).hz;
   return Math.round(a + (estribor.horizon(W, H) - a) * ease(look.p));
 };
 
+let faces: [HTMLCanvasElement, HTMLCanvasElement] | undefined;
+function face(i: 0 | 1, W: number, H: number) {
+  faces ??= [document.createElement('canvas'), document.createElement('canvas')];
+  const c = faces[i];
+  if (c.width !== W || c.height !== H) {
+    c.width = W;
+    c.height = H;
+  }
+  const x = c.getContext('2d')!;
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.clearRect(0, 0, W, H);
+  return x;
+}
+
 /**
- * Girar la cabeza dentro del mismo espacio: las dos vistas comparten horizonte
- * (la mirada baja un poco hacia el ventanal mientras gira) y se juntan en el
- * poste de la esquina de estribor, que cruza la pantalla con el giro.
+ * Girar la cabeza dentro del mismo espacio. El frente (timón) y el costado de
+ * estribor son dos paredes de la misma cabina, en ángulo recto; al girar, la
+ * cámara rota sobre sí misma y cada pared se proyecta en perspectiva, columna
+ * por columna: el frente se aleja hacia la izquierda, la esquina cruza la
+ * pantalla y el ventanal entra abriéndose desde la derecha.
  */
 export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
   const dt = Math.min(0.1, Math.max(0, t - look.last));
   look.last = t;
-  const step = env.still ? 1 : dt / 0.9;
+  const step = env.still ? 1 : dt / 1.1;
   look.p = look.to > look.p ? Math.min(look.to, look.p + step) : Math.max(look.to, look.p - step);
-  const off = Math.round(ease(look.p) * W);
-  const hzA = layout(W, H).hz;
-  const hzB = estribor.horizon(W, H);
+  const e = ease(look.p);
   const hz = horizon(W, H);
-  const dyA = hz - hzA;
-  const dyB = hz - hzB;
-  shift.x = -off;
+  const dyA = hz - layout(W, H).hz;
+  const dyB = hz - estribor.horizon(W, H);
+  shift.a = (e * Math.PI) / 2;
   shift.y = dyA;
-  if (off < W) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, W - off, H);
-    ctx.clip();
-    ctx.fillStyle = g(0.02);
-    ctx.fillRect(0, 0, W, H); // lo que asome por arriba o por abajo es cabina en sombra
-    ctx.clearRect(0, Math.max(0, dyA), W, H - Math.abs(dyA));
-    ctx.translate(-off, dyA);
-    helm(ctx, W, H, t, env);
-    ctx.restore();
+  if (e <= 0) return helm(ctx, W, H, t, env);
+  if (e >= 1) return estribor.draw(ctx, W, H, t, env);
+
+  const A = face(0, W, H);
+  helm(A, W, H, t, env);
+  const B = face(1, W, H);
+  estribor.draw(B, W, H, t, env);
+  const sin = Math.sin(shift.a);
+  const cos = Math.cos(shift.a);
+  const f = W / 2;
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = g(0.02);
+  for (let x = 0; x < W; x++) {
+    const xs = x + 0.5 - f;
+    // rayo de esta columna, en el mundo
+    const X = xs * cos + f * sin;
+    const Z = -xs * sin + f * cos;
+    let src: HTMLCanvasElement;
+    let u: number;
+    let depth: number;
+    let dy: number;
+    if (Z > 0 && X <= Z) {
+      src = faces![0];
+      u = X / Z;
+      depth = u * sin + cos;
+      dy = dyA;
+    } else {
+      src = faces![1];
+      u = -Z / X;
+      depth = sin - u * cos;
+      dy = dyB;
+    }
+    const s = 1 / depth; // la pared se ve más chica cuanto más lejos queda
+    const top = H / 2 + (dy - H / 2) * s;
+    const h = H * s;
+    const sx = Math.min(W - 1, Math.max(0, Math.floor(((u + 1) * W) / 2)));
+    // lo que no alcanza a cubrir la pared es techo y piso en sombra
+    if (top > 0) ctx.fillRect(x, 0, 1, Math.ceil(top));
+    if (top + h < H) ctx.fillRect(x, Math.floor(top + h), 1, H);
+    ctx.drawImage(src, sx, 0, 1, H, x, top, 1, h);
   }
-  if (off > 0) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(W - off, 0, off, H);
-    ctx.clip();
-    ctx.fillStyle = g(0.03);
-    ctx.fillRect(0, 0, W, H);
-    ctx.clearRect(0, Math.max(0, dyB), W, H - Math.abs(dyB));
-    ctx.translate(W - off, dyB);
-    estribor.draw(ctx, W, H, t, env);
-    ctx.restore();
-  }
-  if (off > 0 && off < W) {
-    // poste de la esquina: montante ancho con canto de luz hacia proa y sombra hacia el ventanal
-    const pw = Math.max(8, Math.round(W * 0.045));
-    const x = W - off - Math.round(pw / 2);
-    const day = env.daylight;
-    const post = ctx.createLinearGradient(x, 0, x + pw, 0);
-    post.addColorStop(0, g(0.16 + 0.1 * day));
-    post.addColorStop(0.45, g(0.07));
-    post.addColorStop(1, g(0.02));
-    ctx.fillStyle = post;
-    ctx.fillRect(x, 0, pw, H);
-    ctx.fillStyle = g(0.5 + 0.3 * day);
-    ctx.fillRect(x, 0, 1, H);
-    ctx.fillStyle = g(0);
-    ctx.fillRect(x + pw, 0, 2, H);
-    ctx.fillStyle = g(0.45);
-    for (let y = 6; y < H; y += Math.max(10, Math.round(H / 28))) ctx.fillRect(x + Math.round(pw * 0.3), y, 1, 1);
-  }
+  ctx.imageSmoothingEnabled = smooth;
 }
 
 function helm(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {

@@ -740,8 +740,8 @@ const card = $('[data-scene="contacto"] .papers');
 const tallerEl = $('[data-scene="taller"]');
 let lastRise = '';
 
-let lastTurn = '0px';
-const cabinEl = $('[data-scene="lz20"]');
+let lastTurn = '';
+const boardEl = $('.board');
 function frame(now: number) {
   requestAnimationFrame(frame);
   if (document.hidden || now - last < 1000 / FPS) return;
@@ -811,8 +811,12 @@ function frame(now: number) {
   if (tf !== lastCam) stage.style.transform = card.style.transform = lastCam = tf;
   sc.draw(ctx, W, H, t, env);
   // los diales y la bitácora están atornillados al tablero: se van con él al girar la vista
-  const turn = state.scene === 'lz20' ? `${(cabina.shift.x * R.scale).toFixed(0)}px ${(cabina.shift.y * R.scale).toFixed(0)}px` : '0px';
-  if (turn !== lastTurn) cabinEl.style.setProperty('--turn', (lastTurn = turn));
+  let turn = '';
+  if (state.scene === 'lz20' && cabina.shift.a > 0.0005) {
+    const f = ((W / 2) * R.scale).toFixed(1);
+    turn = `perspective(${f}px) translateZ(${f}px) rotateY(${cabina.shift.a.toFixed(4)}rad) translateZ(-${f}px) translateY(${(cabina.shift.y * R.scale).toFixed(1)}px)`;
+  }
+  if (turn !== lastTurn) boardEl.style.transform = lastTurn = turn;
   R.end(pal, sky, state.fade);
 }
 
