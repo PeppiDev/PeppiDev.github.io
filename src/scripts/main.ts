@@ -807,16 +807,19 @@ const showSnd = (on: boolean) => {
   sndBtn.textContent = on ? tr('Sonido · sí', 'Sound · on') : tr('Sonido · no', 'Sound · off');
 };
 showSnd(audio.enabled());
-// activado por defecto: suena desde el primer clic o tecla del visitante
-const firstGesture = () => {
-  removeEventListener('pointerdown', firstGesture, true);
-  removeEventListener('keydown', firstGesture, true);
+// activado por defecto. El navegador no deja sonar nada hasta que el visitante
+// interactúa, así que se reintenta en cada gesto hasta que el audio corre de verdad
+// (y se prueba al cargar, por si el navegador ya lo permite).
+const GESTURES = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'] as const;
+const wake = () => {
   audio.unlock();
   audio.ambience(state.scene);
   bunkerMusic();
+  if (audio.running()) GESTURES.forEach((g) => removeEventListener(g, wake, true));
+  else setTimeout(() => audio.running() && GESTURES.forEach((g) => removeEventListener(g, wake, true)), 200);
 };
-addEventListener('pointerdown', firstGesture, true);
-addEventListener('keydown', firstGesture, true);
+GESTURES.forEach((g) => addEventListener(g, wake, true));
+wake();
 sndBtn.addEventListener('click', () => {
   showSnd(audio.toggle());
   audio.ambience(state.scene);

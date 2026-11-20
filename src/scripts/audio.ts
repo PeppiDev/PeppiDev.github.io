@@ -57,10 +57,15 @@ function apply() {
   master.gain.setTargetAtTime(on ? 0.5 : 0, ac!.currentTime, 0.3);
 }
 
-/** Primer gesto del visitante: si el sonido está activado, empieza a sonar. */
-export function unlock() {
-  if (on) apply();
+/** Intenta hacer sonar el audio si está activado. Devuelve true si ya suena
+ *  (o si está apagado: no hay nada que desbloquear). */
+export function unlock(): boolean {
+  if (!on) return true;
+  apply();
+  return ac!.state === 'running';
 }
+
+export const running = () => !on || ac?.state === 'running';
 
 export function toggle(): boolean {
   on = !on;
