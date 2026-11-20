@@ -811,7 +811,7 @@ function frame(now: number) {
   if (tf !== lastCam) stage.style.transform = card.style.transform = lastCam = tf;
   sc.draw(ctx, W, H, t, env);
   // los diales y la bitácora están atornillados al tablero: se van con él al girar la vista
-  const turn = state.scene === 'lz20' ? `${(-Math.round(cabina.shift() * W) * R.scale).toFixed(0)}px` : '0px';
+  const turn = state.scene === 'lz20' ? `${(cabina.shift.x * R.scale).toFixed(0)}px ${(cabina.shift.y * R.scale).toFixed(0)}px` : '0px';
   if (turn !== lastTurn) cabinEl.style.setProperty('--turn', (lastTurn = turn));
   R.end(pal, sky, state.fade);
 }

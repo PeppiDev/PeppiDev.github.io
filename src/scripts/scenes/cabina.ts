@@ -53,42 +53,75 @@ export const poke = () => (fx.hit = performance.now() / 1000);
 export const look = { to: 0, p: 0, last: 0 };
 const ease = (x: number) => x * x * (3 - 2 * x);
 
-/** Cuánto se ha corrido la cabina hacia la izquierda, de 0 a 1: la interfaz va con ella. */
-export const shift = () => ease(look.p);
+/** Cuánto se ha corrido la cabina al girar la vista, en px del lienzo: la interfaz va con ella. */
+export const shift = { x: 0, y: 0 };
 
 export const horizon = (W: number, H: number) => {
   const a = layout(W, H).hz;
   return Math.round(a + (estribor.horizon(W, H) - a) * ease(look.p));
 };
 
-/** Girar la cabeza: la cabina se desliza hacia la izquierda y entra el costado de estribor. */
+/**
+ * Girar la cabeza dentro del mismo espacio: las dos vistas comparten horizonte
+ * (la mirada baja un poco hacia el ventanal mientras gira) y se juntan en el
+ * poste de la esquina de estribor, que cruza la pantalla con el giro.
+ */
 export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
   const dt = Math.min(0.1, Math.max(0, t - look.last));
   look.last = t;
-  const step = env.still ? 1 : dt / 0.75;
+  const step = env.still ? 1 : dt / 0.9;
   look.p = look.to > look.p ? Math.min(look.to, look.p + step) : Math.max(look.to, look.p - step);
   const off = Math.round(ease(look.p) * W);
+  const hzA = layout(W, H).hz;
+  const hzB = estribor.horizon(W, H);
+  const hz = horizon(W, H);
+  const dyA = hz - hzA;
+  const dyB = hz - hzB;
+  shift.x = -off;
+  shift.y = dyA;
   if (off < W) {
     ctx.save();
-    ctx.translate(-off, 0);
     ctx.beginPath();
-    ctx.rect(0, 0, W, H);
+    ctx.rect(0, 0, W - off, H);
     ctx.clip();
+    ctx.fillStyle = g(0.02);
+    ctx.fillRect(0, 0, W, H); // lo que asome por arriba o por abajo es cabina en sombra
+    ctx.clearRect(0, Math.max(0, dyA), W, H - Math.abs(dyA));
+    ctx.translate(-off, dyA);
     helm(ctx, W, H, t, env);
     ctx.restore();
   }
   if (off > 0) {
     ctx.save();
-    ctx.translate(W - off, 0);
     ctx.beginPath();
-    ctx.rect(0, 0, W, H);
+    ctx.rect(W - off, 0, off, H);
     ctx.clip();
+    ctx.fillStyle = g(0.03);
+    ctx.fillRect(0, 0, W, H);
+    ctx.clearRect(0, Math.max(0, dyB), W, H - Math.abs(dyB));
+    ctx.translate(W - off, dyB);
     estribor.draw(ctx, W, H, t, env);
     ctx.restore();
   }
+  if (off > 0 && off < W) {
+    // poste de la esquina: montante ancho con canto de luz hacia proa y sombra hacia el ventanal
+    const pw = Math.max(8, Math.round(W * 0.045));
+    const x = W - off - Math.round(pw / 2);
+    const day = env.daylight;
+    const post = ctx.createLinearGradient(x, 0, x + pw, 0);
+    post.addColorStop(0, g(0.16 + 0.1 * day));
+    post.addColorStop(0.45, g(0.07));
+    post.addColorStop(1, g(0.02));
+    ctx.fillStyle = post;
+    ctx.fillRect(x, 0, pw, H);
+    ctx.fillStyle = g(0.5 + 0.3 * day);
+    ctx.fillRect(x, 0, 1, H);
+    ctx.fillStyle = g(0);
+    ctx.fillRect(x + pw, 0, 2, H);
+    ctx.fillStyle = g(0.45);
+    for (let y = 6; y < H; y += Math.max(10, Math.round(H / 28))) ctx.fillRect(x + Math.round(pw * 0.3), y, 1, 1);
+  }
 }
-
-type Pt = [number, number];
 
 function helm(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
   const L = layout(W, H);
