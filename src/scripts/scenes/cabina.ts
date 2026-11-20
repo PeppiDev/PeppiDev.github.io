@@ -32,8 +32,8 @@ export function layout(W: number, H: number) {
     r,
   }));
   /** atril de la bitácora (solo en horizontal) */
-  const board: Rect | null = port ? null : { x: W * 0.59, y: H * 0.27, w: W * 0.385, h: H * 0.73 };
-  const log: Rect | null = board && { x: board.x + W * 0.014, y: board.y + H * 0.035, w: board.w - W * 0.028, h: H * 0.955 - board.y - H * 0.035 };
+  const board: Rect | null = port ? null : { x: W * 0.59, y: H * 0.27, w: W * 0.42, h: H * 0.73 }; // llega hasta el costado: no queda consola a su derecha
+  const log: Rect | null = board && { x: board.x + W * 0.014, y: board.y + H * 0.035, w: W * 0.357, h: H * 0.955 - board.y - H * 0.035 };
   /** el timonel: zona clickeable */
   const hs = (far.y1 - far.y0) * 0.105;
   const headY = far.y0 + (far.y1 - far.y0) * 0.5;
@@ -847,7 +847,7 @@ function helm(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, en
     ctx.fillRect(Math.round(b.x + inset), Math.round(b.y), Math.round(b.w - inset * 2), 1);
     // pinzas y pestaña inferior
     ctx.fillStyle = g(0.95);
-    for (const f of [0.3, 0.7]) ctx.fillRect(Math.round(b.x + b.w * f - W * 0.012), Math.round(b.y + H * 0.012), Math.round(W * 0.024), Math.round(H * 0.04));
+    for (const f of [0.3, 0.7]) ctx.fillRect(Math.round(b.x + W * 0.385 * f - W * 0.012), Math.round(b.y + H * 0.012), Math.round(W * 0.024), Math.round(H * 0.04));
     ctx.fillStyle = g(0.95);
     ctx.fillRect(Math.round(b.x), Math.round(H * 0.955), Math.round(b.w), Math.max(2, Math.round(H * 0.012)));
     ctx.fillStyle = g(0.03);

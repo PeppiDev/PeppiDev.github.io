@@ -6,6 +6,7 @@ import { g, Renderer, type Palette, type Sky } from './dither';
 import { friends, type Friend } from '../data/friends';
 import * as bunker from './scenes/bunker';
 import * as cabina from './scenes/cabina';
+import * as estribor from './scenes/estribor';
 import * as exterior from './scenes/exterior';
 import * as radio from './scenes/radio';
 import * as taller from './scenes/taller';
@@ -266,6 +267,13 @@ function place() {
   const say = $('#say').style;
   say.left = `${(C.pilot.x + C.pilot.w / 2) * k}px`;
   say.top = `${C.pilot.y * k - 10}px`;
+  const S = estribor.layout(R.W, R.H);
+  put('#lampS', S.lamp);
+  put('#mug', S.mug);
+  put('#spy', S.spy);
+  const say3 = $('#say3').style;
+  say3.left = `${(S.mug.x + S.mug.w / 2) * k}px`;
+  say3.top = `${S.mug.y * k - 6}px`;
   const B = bunker.layout(R.W, R.H);
   put('#me', B.me);
   const say2 = $('#say2').style;
@@ -470,8 +478,45 @@ document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
 
 // ── Cabina: girar la vista al ventanal de estribor y volver al timón ──────
 
+function spyOut(on: boolean) {
+  estribor.fx.spy = on ? 1 : 0;
+  const sec = $('[data-scene="lz20"]');
+  on ? sec.setAttribute('data-spy', '') : sec.removeAttribute('data-spy');
+  $('#spy').setAttribute('aria-label', on ? tr('Dejar los prismáticos', 'Put the binoculars down') : tr('Prismáticos: mirar el valle de cerca', 'Binoculars: take a closer look at the valley'));
+}
+$('#spy').addEventListener('click', () => {
+  spyOut(!estribor.fx.spy);
+  audio.key();
+});
+$('#lampS').addEventListener('click', () => {
+  estribor.fx.lamp = !(estribor.fx.lamp ?? env.daylight < 0.3);
+  audio.key();
+});
+{
+  const es = ['Café de grano. Todavía tibio.', 'Se toma mirando el valle.', 'Queda la mitad. No se lo digas al timonel.', 'Con dos de azúcar, como debe ser.', 'El termo es del timonel. El jarro, de quien lo encuentre.'];
+  const en = ['Fresh coffee. Still warm.', 'Best had while watching the valley.', "Half left. Don't tell the helmsman.", 'Two sugars, as it should be.', "The flask is the helmsman's. The mug is finders keepers."];
+  const say = $('#say3');
+  let n = -1;
+  let hide = 0;
+  let talk = 0;
+  $('#mug').addEventListener('click', () => {
+    estribor.sip();
+    audio.key();
+    n = (n + 1) % es.length;
+    const text = tr(es[n], en[n]);
+    talk = talkInto(say, text, talk);
+    clearTimeout(hide);
+    hide = window.setTimeout(() => say.classList.remove('on'), 2600 + text.length * 38);
+  });
+}
+
 function lookOut(on: boolean) {
   cabina.look.to = on ? 1 : 0;
+  if (!on && estribor.fx.spy) {
+    spyOut(false);
+    estribor.fx.sp = 0;
+  }
+  if (!on) $('#say3').classList.remove('on');
   const sec = $('[data-scene="lz20"]');
   on ? sec.setAttribute('data-look', '') : sec.removeAttribute('data-look');
   const b = $('#look');
@@ -500,6 +545,7 @@ addEventListener('hashchange', () => go(route()));
 addEventListener('keydown', (e) => {
   if (state.scene === 'lz20' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.metaKey && !e.altKey) lookOut(e.key === 'ArrowRight');
   if (e.key === 'Escape' && zoom === 'frame') return closeFrame();
+  if (e.key === 'Escape' && state.scene === 'lz20' && estribor.fx.spy) return spyOut(false);
   if (e.key === 'Escape' && state.scene !== 'exterior' && !zoom) location.hash = '#/';
   // el teclado de verdad también mueve las teclas de la máquina
   if (state.scene === 'taller' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && document.activeElement?.id !== 'keys')

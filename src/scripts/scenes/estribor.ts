@@ -36,6 +36,46 @@ export function view(W: number, H: number) {
 
 export const horizon = (W: number, H: number) => view(W, H).hz;
 
+/** Lo que se puede tocar: `lamp` nula = sola (encendida de noche); `spy` = mirando por los prismáticos. */
+export const fx = { lamp: null as boolean | null, spy: 0, sp: 0, last: 0, sip: -9 };
+export const sip = () => (fx.sip = performance.now() / 1000);
+const smooth = (x: number) => x * x * (3 - 2 * x);
+
+/** La mesita plegable bajo el ventanal y lo que hay encima. */
+function furniture(W: number, H: number) {
+  const { port, win } = view(W, H);
+  const u = win.y1 - win.y0;
+  const post = Math.max(4, Math.round(W * 0.016));
+  const panes = port ? 2 : 3;
+  const pw = (win.x1 - win.x0 - post * (panes - 1)) / panes;
+  const yb = win.y1 + u * 0.035;
+  const yf = Math.min(H * 0.985, win.y1 + u * 0.3);
+  const xb0 = W * 0.09;
+  const xb1 = W * (port ? 0.91 : 0.57);
+  const xf0 = W * 0.05;
+  const xf1 = W * (port ? 0.95 : 0.61);
+  /** punto sobre la cubierta: fx de izquierda a derecha, fy del fondo al canto */
+  const at = (px: number, py: number): [number, number] => {
+    const a = xb0 + (xf0 - xb0) * py;
+    const b = xb1 + (xf1 - xb1) * py;
+    return [a + (b - a) * px, yb + (yf - yb) * py];
+  };
+  const s = u * (port ? 0.055 : 0.075);
+  const mug = at(0.21, 0.55);
+  const spy = at(0.82, 0.5);
+  const lamp: [number, number] = [port ? W * 0.5 : win.x0 + pw + post / 2, win.y0 + u * 0.17];
+  return { u, post, panes, pw, yb, yf, xb0, xb1, xf0, xf1, at, s, mug, spy, lamp };
+}
+
+export function layout(W: number, H: number) {
+  const { s, mug, spy, lamp } = furniture(W, H);
+  return {
+    mug: { x: mug[0] - s * 0.8, y: mug[1] - s * 1.7, w: s * 1.9, h: s * 2 },
+    spy: { x: spy[0] - s * 1.1, y: spy[1] - s * 1.6, w: s * 2.2, h: s * 2 },
+    lamp: { x: lamp[0] - s * 1.2, y: lamp[1] - s * 0.9, w: s * 2.4, h: s * 1.8 },
+  };
+}
+
 type Thing = { z: number; draw: () => void };
 
 export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
@@ -45,6 +85,24 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   const night = day < 0.3;
   const lit = 0.3 + 0.7 * day;
   const cx = W / 2;
+  // prismáticos: todo se acerca y se cierra la máscara de los dos lentes
+  {
+    const dt = Math.min(0.1, Math.max(0, t - fx.last));
+    fx.last = t;
+    const step = env.still ? 1 : dt / 0.45;
+    fx.sp = fx.spy > fx.sp ? Math.min(fx.spy, fx.sp + step) : Math.max(fx.spy, fx.sp - step);
+  }
+  const sp = smooth(fx.sp);
+  ctx.save();
+  if (sp > 0) {
+    // en vertical el poste queda al centro: se apunta al medio del paño izquierdo
+    const zx = V.port ? win.x0 + (win.x1 - win.x0) * 0.2 : W / 2;
+    const zy = hz + (win.y1 - win.y0) * 0.14;
+    const z = 1 + 1.9 * sp;
+    ctx.translate(zx, zy);
+    ctx.scale(z, z);
+    ctx.translate(-zx, -zy);
+  }
   const cam = env.still ? TOWN_X + 0.1 : t * SPEED;
   // proyección: el suelo a z km queda a A/z bajo el horizonte; F es la escala a 1 km
   const A = (win.y1 - hz) * ROWS[0];
@@ -428,10 +486,8 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   }
 
   // ── El costado de la cabina: todo menos los tres paños del ventanal ──
-  const u = win.y1 - win.y0;
-  const post = Math.max(4, Math.round(W * 0.016));
-  const panes = V.port ? 2 : 3;
-  const pw = (win.x1 - win.x0 - post * (panes - 1)) / panes;
+  const M = furniture(W, H);
+  const { u, post, panes, pw } = M;
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, W, H);
@@ -480,4 +536,256 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   ctx.fillStyle = g(0.22);
   for (let i = 0; i <= panes; i++) ctx.fillRect(Math.round(win.x0 + i * (pw + post) - post / 2), Math.round(win.y1 + 2), 1, H);
   ctx.restore();
+
+  // ── La mesita plegable y sus cosas ──
+  const lampOn = fx.lamp ?? night;
+  const now = performance.now() / 1000;
+  const poly = (pts: [number, number][]) => {
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+  };
+  {
+    const { yb, yf, xb0, xb1, xf0, xf1, at, s } = M;
+    const lip = Math.max(3, Math.round(u * 0.022));
+    // sombra bajo la mesa
+    ctx.fillStyle = g(0);
+    ctx.globalAlpha = 0.7;
+    ctx.fillRect(xf0 + lip, yf, xf1 - xf0, H - yf);
+    ctx.globalAlpha = 1;
+    const top = ctx.createLinearGradient(0, yb, 0, yf);
+    top.addColorStop(0, g(0.3 * lit + 0.05));
+    top.addColorStop(1, g(0.62 * lit + 0.08));
+    ctx.fillStyle = top;
+    poly([[xb0, yb], [xb1, yb], [xf1, yf], [xf0, yf]]);
+    ctx.fill();
+    // tablas
+    ctx.strokeStyle = g(0.05);
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    for (const q of [0.25, 0.5, 0.75]) {
+      ctx.moveTo(...at(q, 0));
+      ctx.lineTo(...at(q, 1));
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (lampOn) {
+      // charco de luz de la lámpara
+      ctx.save();
+      poly([[xb0, yb], [xb1, yb], [xf1, yf], [xf0, yf]]);
+      ctx.clip();
+      const [lx] = M.lamp;
+      const pool = ctx.createRadialGradient(lx, (yb + yf) / 2, 1, lx, (yb + yf) / 2, u * 0.55);
+      pool.addColorStop(0, `rgba(255,255,0,${night ? 0.6 : 0.35})`);
+      pool.addColorStop(1, 'rgba(120,160,0,0)');
+      ctx.fillStyle = pool;
+      ctx.fillRect(0, yb, W, yf - yb);
+      ctx.restore();
+    }
+    // canto del frente
+    ctx.fillStyle = g(0.05);
+    ctx.fillRect(Math.round(xf0), Math.round(yf), Math.round(xf1 - xf0), lip);
+    ctx.fillStyle = g(0.9 * lit + 0.05);
+    ctx.fillRect(Math.round(xf0), Math.round(yf), Math.round(xf1 - xf0), 1);
+    ctx.fillStyle = g(0);
+    ctx.fillRect(Math.round(xb0), Math.round(yb) - 1, Math.round(xb1 - xb0), 1);
+
+    // carta de ruta: el camino a Chillán marcado a lápiz
+    {
+      const c = [at(0.36, 0.2), at(0.68, 0.14), at(0.7, 0.86), at(0.34, 0.92)] as [number, number][];
+      ctx.fillStyle = g(0);
+      ctx.globalAlpha = 0.5;
+      poly(c.map(([x, y]) => [x + 2, y + 2] as [number, number]));
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = g(lampOn && night ? 0.7 : 0.85 * lit + 0.12, lampOn && night ? 0.2 : 0);
+      poly(c);
+      ctx.fill();
+      ctx.strokeStyle = g(0.3);
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      for (const q of [0.33, 0.66]) {
+        ctx.moveTo(...at(0.36 + 0.33 * q, 0.18));
+        ctx.lineTo(...at(0.34 + 0.36 * q, 0.9));
+        ctx.moveTo(...at(0.36, 0.2 + 0.7 * q));
+        ctx.lineTo(...at(0.69, 0.16 + 0.7 * q));
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = g(0.5, 1);
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath();
+      ctx.moveTo(...at(0.64, 0.3));
+      ctx.lineTo(...at(0.56, 0.42));
+      ctx.lineTo(...at(0.5, 0.4));
+      ctx.lineTo(...at(0.41, 0.7));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = g(0.05);
+      for (const q of [at(0.64, 0.3), at(0.41, 0.7)]) ctx.fillRect(Math.round(q[0]) - 1, Math.round(q[1]) - 1, 3, 3);
+      // lápiz
+      const [ax, ay] = at(0.6, 0.62);
+      const [bx, by] = at(0.74, 0.78);
+      ctx.strokeStyle = g(0.9, 0.9);
+      ctx.lineWidth = Math.max(2, s * 0.09);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = g(0.05);
+      ctx.fillRect(Math.round(ax) - 1, Math.round(ay) - 1, 2, 2);
+    }
+
+    // termo
+    {
+      const [x, y] = at(0.08, 0.38);
+      const w = s * 0.55;
+      const h = s * 1.9;
+      ctx.fillStyle = g(0);
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(x + w * 0.5, y, w * 1.1, s * 0.16, 0, 0, 7);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      const body = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+      body.addColorStop(0, g(0.75 * lit + 0.1));
+      body.addColorStop(0.35, g(0.3 * lit + 0.05));
+      body.addColorStop(1, g(0.03));
+      ctx.fillStyle = body;
+      ctx.fillRect(Math.round(x - w / 2), Math.round(y - h), Math.round(w), Math.round(h));
+      ctx.fillStyle = g(0.9 * lit + 0.08);
+      ctx.fillRect(Math.round(x - w * 0.4), Math.round(y - h - s * 0.3), Math.round(w * 0.8), Math.round(s * 0.3));
+      ctx.fillStyle = g(0.6, 0.8);
+      ctx.fillRect(Math.round(x - w / 2), Math.round(y - h * 0.72), Math.round(w), Math.max(1, Math.round(s * 0.08)));
+    }
+
+    // jarro enlozado, con su vapor
+    {
+      const k = (now - fx.sip) / 1.3;
+      const lift = k > 0 && k < 1 ? Math.sin(k * Math.PI) : 0;
+      const [x0, y0] = M.mug;
+      const x = x0 + lift * s * 0.5;
+      const y = y0 - lift * s * 1.6;
+      const w = s * 0.85;
+      const h = s * 0.8;
+      ctx.fillStyle = g(0);
+      ctx.globalAlpha = 0.5 * (1 - lift);
+      ctx.beginPath();
+      ctx.ellipse(x0 + w * 0.3, y0, w * 0.8, s * 0.16, 0, 0, 7);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = g(0.85 * lit + 0.1);
+      ctx.lineWidth = Math.max(2, s * 0.12);
+      ctx.beginPath();
+      ctx.arc(x + w * 0.5, y - h * 0.5, h * 0.3, -1.3, 1.3);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      const body = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+      body.addColorStop(0, g(0.95 * lit + 0.05));
+      body.addColorStop(0.6, g(0.6 * lit + 0.05));
+      body.addColorStop(1, g(0.2 * lit));
+      ctx.fillStyle = body;
+      ctx.fillRect(Math.round(x - w / 2), Math.round(y - h), Math.round(w), Math.round(h));
+      ctx.fillStyle = g(0.04);
+      ctx.fillRect(Math.round(x - w / 2), Math.round(y - h), Math.round(w), Math.max(2, Math.round(s * 0.12)));
+      ctx.fillRect(Math.round(x - w / 2), Math.round(y) - 1, Math.round(w), 1);
+      if (!lift && !env.still) {
+        ctx.fillStyle = g(0.95, 0, 0.5);
+        for (let i = 0; i < 3; i++)
+          for (let q = 0; q < 9; q++) {
+            const r = (q + ((t * 4 + i * 3) % 9)) / 9; // 0 al salir, 1 arriba
+            if ((q + i) % 2 && r > 0.5) continue;
+            const px = x + (i - 1) * w * 0.22 + Math.sin(r * 5 + t * 1.3 + i * 2) * s * 0.18 * (0.3 + r);
+            ctx.fillRect(Math.round(px), Math.round(y - h - r * s * 1.5), 1, 1);
+          }
+      }
+    }
+
+    // prismáticos (si no están en la mano)
+    if (!fx.spy) {
+      const [x, y] = M.spy;
+      const w = s * 0.5;
+      const h = s * 1.15;
+      ctx.strokeStyle = g(0.04);
+      ctx.lineWidth = Math.max(1, s * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(x - w * 1.1, y - h * 0.5);
+      ctx.bezierCurveTo(x - w * 4, y + s * 0.5, x + w * 3.5, y + s * 0.75, x + w * 1.1, y - h * 0.4);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = g(0);
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(x + w * 0.4, y, w * 2, s * 0.16, 0, 0, 7);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      for (const o of [-0.62, 0.62]) {
+        const bx = x + o * w;
+        ctx.fillStyle = g(0.05);
+        ctx.fillRect(Math.round(bx - w / 2), Math.round(y - h), Math.round(w), Math.round(h));
+        ctx.fillRect(Math.round(bx - w * 0.62), Math.round(y - h * 0.38), Math.round(w * 1.24), Math.round(h * 0.38));
+        ctx.fillStyle = g(0.6 * lit + 0.15);
+        ctx.fillRect(Math.round(bx - w / 2), Math.round(y - h), 1, Math.round(h));
+        ctx.fillStyle = g(0.5 * lit + 0.2, 0, 0.7);
+        ctx.fillRect(Math.round(bx - w / 2), Math.round(y - h), Math.round(w), Math.max(2, Math.round(s * 0.12)));
+      }
+      ctx.fillStyle = g(0.3);
+      ctx.fillRect(Math.round(x - w * 0.15), Math.round(y - h * 0.75), Math.round(w * 0.3), Math.round(h * 0.3));
+    }
+  }
+
+  // ── Lámpara colgante sobre la mesa ──
+  {
+    const s = M.s;
+    const [lx0, ly] = M.lamp;
+    const lx = lx0 + (env.still ? 0 : Math.sin(t * 0.7) * s * 0.06);
+    ctx.fillStyle = g(0.02);
+    ctx.fillRect(Math.round(lx0), 0, 1, Math.round(ly - s * 0.45));
+    const shade = ctx.createLinearGradient(lx - s * 0.8, 0, lx + s * 0.8, 0);
+    shade.addColorStop(0, g(0.75 * lit + 0.1));
+    shade.addColorStop(0.5, g(0.3 * lit + 0.05));
+    shade.addColorStop(1, g(0.04));
+    ctx.fillStyle = shade;
+    poly([[lx - s * 0.22, ly - s * 0.5], [lx + s * 0.22, ly - s * 0.5], [lx + s * 0.8, ly + s * 0.12], [lx - s * 0.8, ly + s * 0.12]]);
+    ctx.fill();
+    ctx.fillStyle = g(0.02);
+    ctx.fillRect(Math.round(lx - s * 0.8), Math.round(ly + s * 0.12), Math.round(s * 1.6), 1);
+    ctx.fillStyle = lampOn ? g(1, 1) : g(0.35);
+    ctx.beginPath();
+    ctx.ellipse(lx, ly + s * 0.2, s * 0.2, s * 0.16, 0, 0, 7);
+    ctx.fill();
+    if (lampOn) {
+      ctx.save();
+      // la luz cae sobre el marco y la pared, no sobre el paisaje de afuera
+      ctx.beginPath();
+      ctx.rect(0, 0, W, H);
+      for (let i = 0; i < panes; i++) ctx.rect(win.x0 + i * (pw + post), win.y0, pw, u);
+      ctx.clip('evenodd');
+      ctx.globalCompositeOperation = 'source-atop';
+      const glow = ctx.createRadialGradient(lx, ly + s * 0.3, 1, lx, ly + s * 0.3, u * (night ? 0.42 : 0.22));
+      glow.addColorStop(0, `rgba(255,255,0,${night ? 0.55 : 0.4})`);
+      glow.addColorStop(1, 'rgba(120,160,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+  }
+
+  ctx.restore(); // fin del acercamiento
+  if (sp > 0) {
+    // máscara de los prismáticos: dos círculos que se cierran como un iris
+    const rf = Math.min(W * (V.port ? 0.34 : 0.25), H * 0.4);
+    const r = rf / Math.pow(Math.max(0.08, sp), 1.6);
+    const half = r * (V.port ? 0.42 : 0.6);
+    const cy = H * (V.port ? 0.4 : 0.52);
+    const a = Math.acos(half / r);
+    ctx.fillStyle = g(0);
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.arc(W / 2 - half, cy, r, a, Math.PI * 2 - a);
+    ctx.arc(W / 2 + half, cy, r, Math.PI + a, Math.PI * 3 - a);
+    ctx.closePath();
+    ctx.fill('evenodd');
+  }
 }

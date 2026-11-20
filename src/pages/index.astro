@@ -157,6 +157,12 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
             <p><a class="mono" href={repo} rel="noopener">github.com/PeppiDev/Sound3ds →</a></p>
           </article>
           </div>
+          <div class="side">
+            <button class="hot" id="lampS" type="button" aria-label="Lámpara de la mesita: encender o apagar"></button>
+            <button class="hot" id="mug" type="button" aria-label="Jarro de café"></button>
+            <button class="hot" id="spy" type="button" aria-label="Prismáticos: mirar el valle de cerca"></button>
+            <p class="mono say" id="say3" role="status"></p>
+          </div>
         </section>
 
         <!-- Radio -->
@@ -675,6 +681,31 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
   }
   [data-look] .board > * {
     pointer-events: none;
+  }
+  /* estribor: lámpara, jarro y prismáticos; aparecen cuando termina el giro */
+  .side {
+    visibility: hidden;
+  }
+  [data-look] .side {
+    visibility: visible;
+    transition: visibility 0s 1.1s;
+  }
+  [data-spy] #spy {
+    position: fixed;
+    inset: 0;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 3;
+    cursor: zoom-out;
+  }
+  #spy {
+    cursor: zoom-in;
+  }
+  [data-spy] #mug,
+  [data-spy] #lampS {
+    display: none;
   }
   .channels {
     list-style: none;
