@@ -1,12 +1,12 @@
-// Sonido ambiente sintetizado (sin archivos). Apagado hasta que el visitante lo
-// enciende: los navegadores bloquean el audio sin un gesto, y así debe ser.
+// Sonido ambiente sintetizado (sin archivos). Activado por defecto, pero los
+// navegadores no dejan sonar nada sin un gesto: arranca con el primer clic o tecla.
 
 let ac: AudioContext | null = null;
 let master: GainNode;
 let wind: GainNode;
 let windFilter: BiquadFilterNode;
 let drone: GainNode;
-let on = false;
+let on = true;
 
 function noiseBuffer(ctx: AudioContext, seconds: number) {
   const buf = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
@@ -51,11 +51,20 @@ function init() {
   lp.connect(drone).connect(master);
 }
 
-export function toggle(): boolean {
+function apply() {
   if (!ac) init();
-  on = !on;
   void ac!.resume();
   master.gain.setTargetAtTime(on ? 0.5 : 0, ac!.currentTime, 0.3);
+}
+
+/** Primer gesto del visitante: si el sonido está activado, empieza a sonar. */
+export function unlock() {
+  if (on) apply();
+}
+
+export function toggle(): boolean {
+  on = !on;
+  apply();
   return on;
 }
 
@@ -211,26 +220,6 @@ export function morse(down: boolean) {
     morseOsc.start();
   }
   morseGain!.gain.setTargetAtTime(down ? 0.16 : 0, ac.currentTime, 0.004);
-}
-
-/** Voz sintetizada (inglés por defecto, o español). Resuelve al terminar. */
-export function speak(text: string, lang: 'en' | 'es' = 'en'): Promise<void> {
-  return new Promise((resolve) => {
-    const synth = window.speechSynthesis;
-    if (!on || !synth) return resolve();
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = synth.getVoices().filter((v) => v.lang.startsWith(lang));
-    u.voice = voices.find((v) => /male|daniel|david|george|guy|jorge|diego|pablo|carlos|alvaro/i.test(v.name) && !/female/i.test(v.name)) ?? voices[0] ?? null;
-    u.lang = lang === 'es' ? (voices[0]?.lang ?? 'es-CL') : 'en-US';
-    u.rate = lang === 'es' ? 0.9 : 0.82;
-    u.pitch = 0.6;
-    const done = () => resolve();
-    u.onend = done;
-    u.onerror = done;
-    setTimeout(done, 4500 + text.length * 40);
-    synth.cancel();
-    synth.speak(u);
-  });
 }
 
 export const enabled = () => on;

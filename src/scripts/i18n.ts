@@ -8,7 +8,7 @@ export const tr = (es: string, en: string) => (lang === 'es' ? es : en);
 
 const TEXT: [string, string | string[]][] = [
   ['.bar nav a', ['Outside', 'About', 'Projects', 'Contact']],
-  ['#snd', 'Sound · off'],
+  ['#snd', 'Sound · on'],
   ['.tagline', 'Every part has a reason to be there.'],
   ['.hint', 'Pick a place to enter'],
   ['.spot[data-to] .tag', ['<b>LZ 20</b> Projects · Sound3ds', '<b>Hangar</b> About me', '<b>Radio</b> Contact']],

@@ -344,6 +344,26 @@ function go(to: SceneId, instant = false) {
   tl.call(() => ui.classList.remove('moving'));
 }
 
+/** El globo se escribe letra por letra, con un ruidito por sílaba. Devuelve el intervalo. */
+function talkInto(say: HTMLElement, text: string, prev: number): number {
+  clearInterval(prev);
+  say.innerHTML = '<span></span><span style="opacity:0"></span>';
+  const [done, rest] = say.children as unknown as HTMLElement[];
+  rest.textContent = text;
+  say.setAttribute('aria-label', text);
+  say.classList.add('on');
+  let n = 0;
+  const id = window.setInterval(() => {
+    n++;
+    done.textContent = text.slice(0, n);
+    rest.textContent = text.slice(n);
+    const ch = text[n - 1];
+    if (n % 2 && /\p{L}/u.test(ch)) audio.blip(ch);
+    if (n >= text.length) clearInterval(id);
+  }, still ? 0 : 38);
+  return id;
+}
+
 // ── "true me": pararse, cruzar la puerta blindada, bajar al búnker ───────
 
 /** La música se oye lejos desde la escalera y de lleno ya en el cuarto. */
@@ -440,23 +460,8 @@ document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
     if (i >= lastLine) i++;
     if (lastLine < 0) i = 0; // lo primero, siempre, la pregunta
     lastLine = i;
-    // el globo se escribe letra por letra, con un ruidito por sílaba
     const text = lines[i];
-    say.innerHTML = '<span></span><span style="opacity:0"></span>';
-    const [done, rest] = say.children as unknown as HTMLElement[];
-    rest.textContent = text;
-    say.setAttribute('aria-label', text);
-    say.classList.add('on');
-    clearInterval(talk);
-    let n = 0;
-    talk = window.setInterval(() => {
-      n++;
-      done.textContent = text.slice(0, n);
-      rest.textContent = text.slice(n);
-      const ch = text[n - 1];
-      if (n % 2 && /\p{L}/u.test(ch)) audio.blip(ch);
-      if (n >= text.length) clearInterval(talk);
-    }, still ? 0 : 38);
+    talk = talkInto(say, text, talk);
     clearTimeout(hide);
     hide = window.setTimeout(() => say.classList.remove('on'), 2400 + text.length * 80);
   });
@@ -552,7 +557,7 @@ function closeFrame() {
     });
 }
 
-/** Se mueven las perillas, la radio dice el nombre, y recién ahí se cambia de página. */
+/** Se mueven las perillas, aparece el nombre en el aire, y recién ahí se cambia de página. */
 function tuneTo(f: Friend) {
   if (zoom !== 'frame') return;
   setZoom('tuning');
@@ -574,11 +579,10 @@ function tuneTo(f: Friend) {
     .to(fxr, { sweep: 0.37, duration: 0.8, ease: 'back.out(2.5)' }, 1.5)
     .call(() => {
       onair.textContent = `${tr('En el aire', 'On air')} · ${f.name}`;
-      const hold = new Promise((r) => setTimeout(r, 1300));
-      void Promise.all([audio.speak(f.spoken), hold]).then(() => {
+      window.setTimeout(() => {
         if (zoom !== 'tuning') return;
         gsap.to(state, { fade: 1, duration: 0.45, ease: 'none', onComplete: () => location.assign(f.url) });
-      });
+      }, 1300);
     });
 }
 
@@ -616,12 +620,11 @@ const LIMIT = Number(new URLSearchParams(location.search).get('golpes')) || 50; 
   const say = $('#say');
   let lastLine = -1;
   let hide = 0;
+  let talk = 0;
   const speakUp = (text: string) => {
-    say.textContent = text;
-    say.classList.add('on');
-    void audio.speak(text);
+    talk = talkInto(say, text, talk);
     clearTimeout(hide);
-    hide = window.setTimeout(() => say.classList.remove('on'), 2600);
+    hide = window.setTimeout(() => say.classList.remove('on'), 2600 + text.length * 38);
   };
   $('#pilot').addEventListener('click', () => {
     if (shooting) return;
@@ -797,14 +800,27 @@ document.querySelectorAll<HTMLElement>('[data-lamp]').forEach((b) =>
   }),
 );
 
-$('#snd').addEventListener('click', (e) => {
-  const on = audio.toggle();
+const sndBtn = $('#snd');
+const showSnd = (on: boolean) => {
+  ui.toggleAttribute('data-snd', on);
+  sndBtn.setAttribute('aria-pressed', String(on));
+  sndBtn.textContent = on ? tr('Sonido · sí', 'Sound · on') : tr('Sonido · no', 'Sound · off');
+};
+showSnd(audio.enabled());
+// activado por defecto: suena desde el primer clic o tecla del visitante
+const firstGesture = () => {
+  removeEventListener('pointerdown', firstGesture, true);
+  removeEventListener('keydown', firstGesture, true);
+  audio.unlock();
   audio.ambience(state.scene);
   bunkerMusic();
-  const b = e.currentTarget as HTMLElement;
-  ui.toggleAttribute('data-snd', on);
-  b.setAttribute('aria-pressed', String(on));
-  b.textContent = on ? tr('Sonido · sí', 'Sound · on') : tr('Sonido · no', 'Sound · off');
+};
+addEventListener('pointerdown', firstGesture, true);
+addEventListener('keydown', firstGesture, true);
+sndBtn.addEventListener('click', () => {
+  showSnd(audio.toggle());
+  audio.ambience(state.scene);
+  bunkerMusic();
 });
 
 void loadWeather().then(refresh);
