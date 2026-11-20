@@ -53,6 +53,9 @@ export const poke = () => (fx.hit = performance.now() / 1000);
 export const look = { to: 0, p: 0, last: 0 };
 const ease = (x: number) => x * x * (3 - 2 * x);
 
+/** Cuánto se ha corrido la cabina hacia la izquierda, de 0 a 1: la interfaz va con ella. */
+export const shift = () => ease(look.p);
+
 export const horizon = (W: number, H: number) => {
   const a = layout(W, H).hz;
   return Math.round(a + (estribor.horizon(W, H) - a) * ease(look.p));

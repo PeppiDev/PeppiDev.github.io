@@ -16,26 +16,28 @@ export type View = ReturnType<typeof view>;
 export const deskY = (v: View, f: number) => Math.round(v.back + (v.sh - v.back) * f);
 
 /** Muro y tablero del escritorio con las vetas fugando al punto de vista. */
+// Los rellenos se pasan de los bordes: con la cámara encima de un objeto del
+// costado se alcanza a ver más allá del lienzo y ahí también tiene que haber muro.
 export function room(ctx: CanvasRenderingContext2D, W: number, H: number, v: View, env: Env) {
   const amb = 0.5 + 0.5 * env.daylight;
   const wall = ctx.createLinearGradient(0, 0, 0, v.back);
   wall.addColorStop(0, g(0.02));
   wall.addColorStop(1, g(0.05 + 0.15 * env.daylight));
   ctx.fillStyle = wall;
-  ctx.fillRect(0, 0, W, v.back);
+  ctx.fillRect(-W, 0, W * 3, v.back);
 
   const top = ctx.createLinearGradient(0, v.back, 0, v.sh);
   top.addColorStop(0, g(0.4 * amb));
   top.addColorStop(1, g(0.2 * amb));
   ctx.fillStyle = top;
-  ctx.fillRect(0, v.back, W, v.sh - v.back);
+  ctx.fillRect(-W, v.back, W * 3, v.sh - v.back);
   // vetas
   ctx.strokeStyle = g(0.03);
   ctx.globalAlpha = 0.55;
   ctx.lineWidth = 1;
   ctx.beginPath();
   const k = (v.sh - v.vy) / (v.back - v.vy);
-  for (let u = -1.05; u <= 1.06; u += 0.15) {
+  for (let u = -3; u <= 3.01; u += 0.15) {
     ctx.moveTo(v.vx + (u * W) / 2, v.back);
     ctx.lineTo(v.vx + ((u * W) / 2) * k, v.sh);
   }
@@ -43,12 +45,12 @@ export function room(ctx: CanvasRenderingContext2D, W: number, H: number, v: Vie
   ctx.globalAlpha = 1;
   // canto del fondo: sombra contra el muro y filo de luz
   ctx.fillStyle = g(0);
-  ctx.fillRect(0, v.back - 2, W, 2);
+  ctx.fillRect(-W, v.back - 2, W * 3, 2);
   ctx.fillStyle = g(0.75 * amb);
-  ctx.fillRect(0, v.back, W, 1);
+  ctx.fillRect(-W, v.back, W * 3, 1);
   if (v.port) {
     ctx.fillStyle = g(0);
-    ctx.fillRect(0, v.sh, W, H - v.sh);
+    ctx.fillRect(-W, v.sh, W * 3, H - v.sh);
   }
 }
 

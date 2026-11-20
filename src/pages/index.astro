@@ -657,15 +657,13 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
     left: auto;
     right: clamp(1rem, 4vw, 3rem);
   }
+  [data-scene='lz20'] > :not(.back) {
+    translate: var(--turn, 0px) 0;
+  }
   [data-look] > :not(.back) {
-    opacity: 0;
     visibility: hidden;
     pointer-events: none;
-  }
-  [data-scene='lz20'] > :not(.back) {
-    transition:
-      opacity 0.35s,
-      visibility 0.35s;
+    transition: visibility 0s 0.8s;
   }
   .channels {
     list-style: none;
