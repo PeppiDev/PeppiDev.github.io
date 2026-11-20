@@ -57,6 +57,10 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   const { far, hz, vx, shelf0, shelf1 } = L;
   const fh = far.y1 - far.y0;
   const day = env.daylight;
+  const night = Math.max(0, Math.min(1, (0.4 - day) / 0.3));
+  /** como g(), pero translúcido: para luces y sombras que se suman a lo ya pintado */
+  const ga = (l: number, a: number, alpha: number) => `rgba(${Math.min(255, l * 255) | 0},${Math.min(255, a * 255) | 0},0,${alpha})`;
+  const sway = env.still ? 0 : Math.sin(t * 0.6) * 0.6 + Math.sin(t * 1.7) * 0.25; // vaivén de lo que cuelga
   const poly = (pts: Pt[]) => {
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -120,7 +124,10 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   ctx.fillStyle = g(0.03);
   ctx.fillRect(0, 0, W, H);
   poly([[far.x0, yc], [far.x1, yc], P(1, 6, yc), P(-1, 6, yc)]);
-  ctx.fillStyle = g(0.05 + 0.04 * day);
+  const cg = ctx.createLinearGradient(0, yc, 0, Math.min(0, yc - fh * 0.5));
+  cg.addColorStop(0, g(0.1 + 0.1 * day)); // el parabrisas alumbra el techo de cerca
+  cg.addColorStop(1, g(0.03));
+  ctx.fillStyle = cg;
   ctx.fill();
   // costados: babor recibe la luz, estribor queda en sombra
   for (const s of [-1, 1]) {
@@ -130,28 +137,49 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     wg.addColorStop(1, g(0.04));
     ctx.fillStyle = wg;
     ctx.fill();
+    // zócalo en sombra bajo las ventanas, con su pasamanos
+    const yz = far.y1 + fh * 0.1;
+    poly([P(s, 1, yz), P(s, 6, yz), P(s, 6, yf), P(s, 1, yf)]);
+    ctx.fillStyle = ga(0, 0, 0.45);
+    ctx.fill();
+    for (const [dy, c] of [[1.5, g(0)], [0, g(s < 0 ? 0.55 : 0.4)]] as const) {
+      const a = P(s, 1, yz);
+      const b = P(s, 6, yz);
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1] + dy);
+      ctx.lineTo(b[0], b[1] + dy * 6);
+      ctx.stroke();
+    }
   }
   // pared del frente
   ctx.fillStyle = g(0.07 + 0.04 * day);
   ctx.fillRect(far.x0, yc, far.x1 - far.x0, yf - yc);
   ctx.fillStyle = g(0.05);
   ctx.fillRect(far.x0, far.y1, far.x1 - far.x0, yf - far.y1);
+  ctx.fillStyle = g(0.3);
+  for (let x = far.x0 + 5; x < far.x1 - 3; x += Math.max(6, (far.x1 - far.x0) / 26)) ctx.fillRect(Math.round(x), Math.round(far.y1 + fh * 0.07), 1, 1);
 
   // cuadernas: anillos que se repiten hacia el frente
   ctx.lineWidth = 1;
   for (const k of [1, 1.57, 2.7]) {
-    ctx.strokeStyle = g(k === 1 ? 0.5 : 0.36);
-    ctx.lineWidth = Math.max(1, Math.round(k * 1.2));
-    ctx.beginPath();
-    const a = P(-1, k, yf);
-    const b = P(-1, k, yc);
-    const c = P(1, k, yc);
-    const d = P(1, k, yf);
-    ctx.moveTo(a[0], a[1]);
-    ctx.lineTo(b[0], b[1]);
-    ctx.lineTo(c[0], c[1]);
-    ctx.lineTo(d[0], d[1]);
-    ctx.stroke();
+    const lw = Math.max(1, Math.round(k * 1.2));
+    // primero la cara en sombra (el espesor del perfil), después el canto con luz
+    for (const [dk, c] of [[lw * 0.012 + 0.012, g(0)], [0, g(k === 1 ? 0.5 : 0.36)]] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = dk ? lw + 1 : lw;
+      ctx.beginPath();
+      const a = P(-1, k + dk, yf);
+      const b = P(-1, k + dk, yc);
+      const c2 = P(1, k + dk, yc);
+      const d = P(1, k + dk, yf);
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.lineTo(c2[0], c2[1]);
+      ctx.lineTo(d[0], d[1]);
+      ctx.stroke();
+    }
   }
   // largueros del techo, fugando
   ctx.lineWidth = 1;
@@ -186,20 +214,84 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   }
 
   // ── Tiradores de lastre colgando del techo ──
+  const hang = (i: number) => (env.still ? 0 : Math.sin(t * 0.9 + i * 1.3) * 0.7 + sway * 0.5);
   ctx.strokeStyle = g(0.4);
   ctx.beginPath();
   for (let i = 0; i < 5; i++) {
     const x = Math.round(W * (0.6 + i * 0.022)) + 0.5;
     const y1 = far.y0 + fh * (0.1 + 0.05 * ((i * 3) % 4));
     ctx.moveTo(x, 0);
-    ctx.lineTo(x, y1);
+    ctx.lineTo(x + Math.round(hang(i)), y1);
   }
   ctx.stroke();
   for (let i = 0; i < 5; i++) {
-    const x = Math.round(W * (0.6 + i * 0.022));
+    const x = Math.round(W * (0.6 + i * 0.022)) + Math.round(hang(i));
     const y1 = Math.round(far.y0 + fh * (0.1 + 0.05 * ((i * 3) % 4)));
     ctx.fillStyle = g(i === 2 ? 0.9 : 0.75, i === 2 ? 1 : 0);
     ctx.fillRect(x - 2, y1, 5, 3);
+  }
+
+  // ── Lámpara colgante: de noche es la que da volumen a la cabina ──
+  {
+    const lx0 = W * (L.port ? 0.3 : 0.405);
+    const ly = far.y0 + fh * 0.16;
+    const lx = lx0 + sway * fh * 0.012;
+    const lr = Math.max(4, fh * 0.055);
+    ctx.strokeStyle = g(0.4);
+    ctx.beginPath();
+    ctx.moveTo(Math.round(lx0) + 0.5, 0);
+    ctx.lineTo(Math.round(lx) + 0.5, ly - lr);
+    ctx.stroke();
+    if (night > 0) {
+      // el resplandor solo tiñe lo que ya es cabina, no el cielo de los vanos
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      const R = fh * 1.25;
+      const glow = ctx.createRadialGradient(lx, ly, 1, lx, ly, R);
+      glow.addColorStop(0, ga(0.7, 1, 0.6 * night));
+      glow.addColorStop(0.25, ga(0.4, 0.9, 0.2 * night));
+      glow.addColorStop(1, ga(0.2, 0.5, 0));
+      ctx.fillStyle = glow;
+      ctx.fillRect(lx - R, ly - R, R * 2, R * 2);
+      ctx.restore();
+    }
+    // pantalla de latón y ampolleta
+    poly([[lx - lr * 0.35, ly - lr], [lx + lr * 0.35, ly - lr], [lx + lr, ly], [lx - lr, ly]]);
+    ctx.fillStyle = g(0.04);
+    ctx.fill();
+    ctx.fillStyle = g(0.6);
+    ctx.fillRect(Math.round(lx - lr), Math.round(ly), Math.round(lr * 2), 1);
+    ctx.fillStyle = night > 0 ? g(1, 1) : g(0.75);
+    ctx.beginPath();
+    ctx.arc(lx, ly + 1, lr * 0.42, 0, Math.PI);
+    ctx.fill();
+  }
+
+  // ── Inclinómetro en la pared del frente: un tubo curvo con su burbuja ──
+  {
+    const ix = far.x0 + (far.x1 - far.x0) * 0.17;
+    const iy = far.y1 + (shelf0 - far.y1) * 0.18;
+    const ir = (far.x1 - far.x0) * 0.1;
+    const span = 0.5;
+    ctx.fillStyle = g(0.02);
+    ctx.fillRect(Math.round(ix - ir * 0.62), Math.round(iy), Math.round(ir * 1.24), Math.round(ir * 0.42));
+    ctx.strokeStyle = g(0.45);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(ix - ir * 0.62) + 0.5, Math.round(iy) + 0.5, Math.round(ir * 1.24), Math.round(ir * 0.42));
+    const cyI = iy + ir * 0.3 - ir; // centro del arco, arriba
+    ctx.strokeStyle = g(0.85);
+    ctx.lineWidth = Math.max(2, ir * 0.07);
+    ctx.beginPath();
+    ctx.arc(ix, cyI, ir, Math.PI / 2 - span, Math.PI / 2 + span);
+    ctx.stroke();
+    const tilt = env.still ? 0 : Math.sin(t * 0.45 - 0.5) * 0.24 + Math.sin(t * 0.8) * 0.06;
+    const ba = Math.PI / 2 + tilt;
+    ctx.fillStyle = g(0.9, 1);
+    ctx.beginPath();
+    ctx.arc(ix + Math.cos(ba) * ir, cyI + Math.sin(ba) * ir, Math.max(1.5, ir * 0.06), 0, 7);
+    ctx.fill();
+    ctx.fillStyle = g(0.9);
+    ctx.fillRect(Math.round(ix), Math.round(iy + ir * 0.34), 1, 2);
   }
 
   // ── Rueda del timón, a contraluz ──
@@ -307,6 +399,39 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     ctx.fillStyle = ink;
     torso();
     ctx.fill();
+    if (!front) {
+      // chaqueta de cuero: la luz de babor le saca brillo al hombro, y de noche la lámpara
+      ctx.save();
+      torso();
+      ctx.clip();
+      const lit = 0.12 + 0.3 * day;
+      const jg = ctx.createLinearGradient(hx - shW, 0, hx + shW, 0);
+      jg.addColorStop(0, g(lit, 0.3 * night));
+      jg.addColorStop(0.45, g(lit * 0.25, 0.06 * night));
+      jg.addColorStop(0.75, ink);
+      ctx.fillStyle = jg;
+      ctx.fillRect(hx - shW * 1.1, shY - hs, shW * 2.2, shelf0 - shY + hs);
+      const sh = ctx.createLinearGradient(0, shY + hs * 0.4, 0, shelf0);
+      sh.addColorStop(0, ga(0, 0, 0));
+      sh.addColorStop(1, ga(0, 0, 0.85));
+      ctx.fillStyle = sh;
+      ctx.fillRect(hx - shW * 1.1, shY, shW * 2.2, shelf0 - shY);
+      // canesú, costura de la espalda y cinturón
+      ctx.strokeStyle = g(0.34);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(hx - shW, shY + hs * 0.95);
+      ctx.quadraticCurveTo(hx, shY + hs * 0.45, hx + shW, shY + hs * 0.95);
+      ctx.moveTo(Math.round(hx) + 0.5, shY + hs * 0.7);
+      ctx.lineTo(Math.round(hx) + 0.5, shelf0);
+      ctx.stroke();
+      const by = Math.round(shY + (shelf0 - shY) * 0.72);
+      ctx.fillStyle = g(0.3);
+      ctx.fillRect(hx - shW, by, shW * 2, Math.max(2, Math.round(hs * 0.3)));
+      ctx.fillStyle = g(0.02);
+      ctx.fillRect(hx - shW, by + Math.max(2, Math.round(hs * 0.3)), shW * 2, 1);
+      ctx.restore();
+    }
     // cuello de la chaqueta
     ctx.fillStyle = g(0.55);
     ctx.beginPath();
@@ -323,6 +448,14 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
     ctx.quadraticCurveTo(hx, hy + hs * 1.5, hx - hs * 1.12, hy + hs * 1.05);
     ctx.closePath();
     ctx.fill();
+    if (!front) {
+      const hg = ctx.createRadialGradient(hx - hs * 0.45, hy - hs * 0.45, 0, hx - hs * 0.2, hy, hs * 1.3);
+      hg.addColorStop(0, g(0.3 + 0.25 * day, 0.4 * night));
+      hg.addColorStop(0.6, g(0.05));
+      hg.addColorStop(1, ink);
+      ctx.fillStyle = hg;
+      ctx.fill();
+    }
     ctx.strokeStyle = g(0.75);
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -401,10 +534,38 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   sg.addColorStop(1, g(lum));
   ctx.fillStyle = sg;
   ctx.fillRect(0, shelf0, W, shelf1 - shelf0);
+  const kk = (shelf1 - hz) / (shelf0 - hz);
+  {
+    // manchas de sol de los tres paños, corridas hacia estribor, y la sombra del timonel
+    const k0 = (shelf0 - hz) / (far.y1 - hz);
+    const lean = (shelf1 - shelf0) * 0.9;
+    if (day > 0.2) {
+      ctx.fillStyle = ga(1, 0, Math.min(0.6, (day - 0.2) * 0.75));
+      for (let i = 0; i < panes; i++) {
+        const xa = far.x0 + post + i * (pw + post);
+        const a = vx + (xa + pw * 0.14 - vx) * k0 * 0.8;
+        const b = vx + (xa + pw * 0.86 - vx) * k0 * 0.8;
+        poly([[a + lean * 0.3, shelf0], [b + lean * 0.3, shelf0], [vx + (b - vx) * kk + lean, shelf1], [vx + (a - vx) * kk + lean, shelf1]]);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = ga(0, 0, 0.7);
+    const pwid = fh * 0.3;
+    poly([[vx - pwid, shelf0], [vx + pwid, shelf0], [vx + pwid * kk + lean, shelf1], [vx - pwid * kk + lean, shelf1]]);
+    ctx.fill();
+    if (night > 0) {
+      // de noche: el charco de luz de la lámpara
+      const lxp = W * (L.port ? 0.3 : 0.405);
+      const pool = ctx.createRadialGradient(lxp, (shelf0 + shelf1) / 2, 1, lxp, (shelf0 + shelf1) / 2, fh * 1.1);
+      pool.addColorStop(0, ga(0.9, 1, 0.6 * night));
+      pool.addColorStop(1, ga(0.3, 0.6, 0));
+      ctx.fillStyle = pool;
+      ctx.fillRect(0, shelf0, W, shelf1 - shelf0);
+    }
+  }
   ctx.strokeStyle = g(0.04);
   ctx.globalAlpha = 0.6;
   ctx.beginPath();
-  const kk = (shelf1 - hz) / (shelf0 - hz);
   for (let u = -0.9; u <= 0.91; u += 0.2) {
     ctx.moveTo(vx + u * W * 0.5, shelf0);
     ctx.lineTo(vx + u * W * 0.5 * kk, shelf1);
@@ -449,9 +610,43 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   ctx.fillRect(0, shelf1, W, 1);
   ctx.fillStyle = g(0);
   ctx.fillRect(0, shelf1 + 1, W, 2);
-  ctx.fillStyle = g(0.55);
-  const step = Math.max(14, Math.round(W / 40));
-  for (let x = 6; x < W; x += step) ctx.fillRect(x, shelf1 + Math.round(H * 0.014), 1, 1);
+
+  // placas atornilladas: una por instrumento, con el canto de arriba tomando luz
+  {
+    const dx = L.dials[1].x - L.dials[0].x;
+    const dy = L.dials[3].y - L.dials[0].y;
+    for (const d of L.dials) {
+      const x = Math.round(d.x - dx * 0.46);
+      const y = Math.round(d.y - d.r * 1.27);
+      const w = Math.round(dx * 0.92);
+      const h = Math.round(dy * 0.9);
+      ctx.fillStyle = g(0.035);
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = g(0.5);
+      ctx.fillRect(x, y, w, 1);
+      ctx.fillStyle = g(0.28);
+      ctx.fillRect(x, y, 1, h);
+      ctx.fillStyle = g(0);
+      ctx.fillRect(x, y + h, w + 1, 1);
+      ctx.fillRect(x + w, y, 1, h);
+      ctx.fillStyle = g(0.7);
+      for (const [rx, ry] of [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]]) ctx.fillRect(x + rx, y + ry, 1, 1);
+    }
+    // fila de interruptores de palanca bajo el canto de la repisa
+    const sy = shelf1 + Math.round(H * 0.015);
+    const x0 = Math.round(W * 0.05) + 48;
+    const xEnd = L.board ? L.board.x - W * 0.05 : W * 0.95;
+    const gap = Math.max(9, Math.round(W * 0.018));
+    for (let i = 0, x = x0; x < xEnd; i++, x += gap + (i % 4 === 0 ? gap : 0)) {
+      const up = (i * 7 + 3) % 5 < 3;
+      ctx.fillStyle = g(0);
+      ctx.fillRect(x - 1, sy + 1, 4, 3);
+      ctx.fillStyle = g(0.45);
+      ctx.fillRect(x, sy + 2, 2, 1);
+      ctx.fillStyle = g(0.9);
+      ctx.fillRect(x, up ? sy - 1 : sy + 3, 2, 3);
+    }
+  }
 
   // biseles de los instrumentos, embutidos (las esferas van encima, en SVG)
   for (const d of L.dials) {
@@ -476,7 +671,7 @@ export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: num
   for (let i = 0; i < 5; i++) {
     const on = i === 0 || (i === 3 && Math.sin(t * 1.3) > 0) || i === 4;
     ctx.fillStyle = on ? g(0.8, 1) : g(0.15);
-    ctx.fillRect(Math.round(W * 0.05) + i * 7, shelf1 + Math.round(H * 0.028), 3, 3);
+    ctx.fillRect(Math.round(W * 0.05) + i * 7, shelf1 + Math.round(H * 0.015) + 1, 3, 3);
   }
 
   // ── Telégrafo de máquinas, en primer plano a babor ──
