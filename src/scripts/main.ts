@@ -206,6 +206,21 @@ function typeSheet() {
 
 let written = '';
 
+// El esqueleto pasa por el ventanal repiqueteando, y uno no se lo cree
+let bonesTalk = 0;
+let bonesHide = 0;
+function sawBones() {
+  taller.bones();
+  audio.rattle();
+  const say = $('#say7');
+  clearTimeout(bonesHide);
+  bonesHide = window.setTimeout(() => {
+    if (state.scene !== 'taller') return;
+    bonesTalk = talkInto(say, tr('¿Viste eso?', 'Did you see that?'), bonesTalk);
+    bonesHide = window.setTimeout(() => say.classList.remove('on'), 3000);
+  }, 1400);
+}
+
 function pressKey(i: number) {
   if (i < 0) return;
   taller.press(i);
@@ -213,7 +228,7 @@ function pressKey(i: number) {
   written = (written + taller.charOf(i)).slice(-16);
   if (written.endsWith('TRUE ME')) descend();
   if (written.endsWith('FIN DEL MUNDO') || written.endsWith('END OF THE WORLD')) doom();
-  if (written.endsWith('ESQUELETO') || written.endsWith('SKELETON')) taller.bones();
+  if (written.endsWith('ESQUELETO') || written.endsWith('SKELETON')) sawBones();
 }
 
 // ── Lámpara del escritorio ───────────────────────────────────────────────
@@ -257,6 +272,10 @@ function place() {
   put('#sheet2', T.v.port ? null : T.sheet2);
   put('[data-scene="taller"] .lampbtn', T.lampRect);
   put('#keys', taller.keyboard(T).rect);
+  const say7 = $('#say7').style;
+  // al lado de la hoja, sobre el fondo oscuro
+  say7.left = `${Math.min(R.W * 0.8, T.tcx + T.tw * 0.72) * k}px`;
+  say7.top = `${(T.platen - T.tw * 0.12) * k}px`;
   const Q = radio.layout(R.W, R.H);
   put('#card', Q.v.port ? null : Q.sheet);
   put('[data-scene="contacto"] [data-lamp]', Q.lampRect);
@@ -335,6 +354,7 @@ function go(to: SceneId, instant = false) {
     cabina.calm();
     lookOut(false);
     lookSide(false);
+    $('#say7').classList.remove('on');
     bunker.look.p = 0;
     state.rise = 0;
     bunker.fx.p = 3;
