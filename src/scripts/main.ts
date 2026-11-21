@@ -31,6 +31,7 @@ const R = new Renderer($<HTMLCanvasElement>('#world'));
 
 const route = (): SceneId => {
   const h = location.hash.replace(/^#\/?/, '');
+  if (h === 'lz20' && exterior.fx.doom) return 'exterior'; // la nave ya no existe
   return h in scenes && h !== 'bunker' ? (h as SceneId) : 'exterior';
 };
 
@@ -444,6 +445,9 @@ function descend(run = false) {
       exterior.fx.doom = env.doom = true;
       $('#upstairs').textContent = tr('← Salir afuera', '← Go outside');
       ui.dataset.doom = '';
+      const nav = $('nav a[href="#/lz20"]');
+      nav.setAttribute('aria-disabled', 'true');
+      nav.setAttribute('tabindex', '-1');
       place();
     }
     state.scene = 'bunker';
@@ -538,6 +542,8 @@ document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
   });
 }
 
+const bunkerSec = $('[data-scene="bunker"]');
+let lastPan = -1;
 // En el búnker se puede girar la vista a la pared del lado
 function lookSide(on: boolean) {
   if (state.scene !== 'bunker' || bunker.fx.p < 3) on = false;
@@ -989,6 +995,14 @@ function frame(now: number) {
   }
   if (tf !== lastCam) stage.style.transform = card.style.transform = lastCam = tf;
   sc.draw(ctx, W, H, t, env);
+  if (state.scene === 'bunker') {
+    const px = Math.round(bunker.pan() * W) * R.scale;
+    if (px !== lastPan) {
+      lastPan = px;
+      bunkerSec.style.setProperty('--pan', `${px}px`);
+      bunkerSec.style.setProperty('--room', `${W * R.scale}px`);
+    }
+  }
   // los diales y la bitácora están atornillados al tablero: se van con él al girar la vista
   let turn = '';
   if (state.scene === 'lz20' && cabina.shift.a > 0.0005) {

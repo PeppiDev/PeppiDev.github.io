@@ -12,6 +12,8 @@ import type { Env, Rect } from './types';
 export const fx = { p: 3, hit: -9, run: false, cat: -9, rbx: -9 };
 /** Hacia dónde se mira en el cuarto: 0 al sillón, 1 a la pared del lado. `p` va detrás, suavizado. */
 export const look = { to: 0, p: 0, last: 0 };
+/** Cuánto ha girado la vista, ya suavizado (0 a 1): lo que está pegado al muro se va con él. */
+export const pan = () => ease(look.p);
 export const pokeCat = () => (fx.cat = performance.now() / 1000);
 export const pokeRbx = () => (fx.rbx = performance.now() / 1000);
 export const poke = () => (fx.hit = performance.now() / 1000);
