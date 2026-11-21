@@ -218,6 +218,13 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
           <button class="hot" id="me" type="button" aria-label="Benjamín, echado en el sillón: háblale"></button>
           <p class="mono say" id="say2" role="status"></p>
           <span class="mono plate" id="rocky">Rocky</span>
+          <button class="back mono floating" id="look2" type="button" aria-pressed="false">Mirar al lado →</button>
+          <div class="aside">
+            <button class="hot" id="cat" type="button" aria-label="El gato en el puff: moléstalo"></button>
+            <button class="hot" id="rbx" type="button" aria-label="Un avatar mal pegado: háblale"></button>
+            <p class="mono say" id="say5" role="status"></p>
+            <p class="mono say" id="say6" role="status"></p>
+          </div>
         </section>
       </main>
     </div>
@@ -663,7 +670,8 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
   .back.floating:hover {
     background: var(--amber);
   }
-  #look {
+  #look,
+  #look2 {
     left: auto;
     right: clamp(1rem, 4vw, 3rem);
   }
@@ -811,6 +819,18 @@ const repo = 'https://github.com/PeppiDev/Sound3ds';
     border-bottom: 0;
   }
   /* ── Búnker ── */
+  .aside {
+    visibility: hidden;
+  }
+  [data-side] .aside {
+    visibility: visible;
+    transition: visibility 0s 0.8s;
+  }
+  [data-side] #me,
+  [data-side] #rocky,
+  [data-side] #say2 {
+    display: none;
+  }
   .plate {
     position: absolute;
     transform: translateX(-50%);

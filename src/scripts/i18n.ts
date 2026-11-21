@@ -58,6 +58,8 @@ const ATTR: [string, string, string][] = [
   ['#lampS', 'aria-label', 'Table lamp: turn on or off'],
   ['#mug', 'aria-label', 'Coffee mug'],
   ['#survivor', 'aria-label', 'Someone in a gas mask: say hi'],
+  ['#cat', 'aria-label', 'The cat on the beanbag: bother him'],
+  ['#rbx', 'aria-label', 'A badly pasted avatar: talk to it'],
   ['#spy', 'aria-label', 'Binoculars: take a closer look at the valley'],
   ['#dials', 'aria-label', 'Instruments: project data and conditions in Chillán'],
   ['#tkey', 'aria-label', 'Telegraph key: hold down to transmit'],

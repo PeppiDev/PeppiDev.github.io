@@ -9,7 +9,11 @@ import type { Env, Rect } from './types';
  * p: 0‥1 caminar hacia la puerta · 1‥2 se abre · 2‥3 bajar la escalera · ≥3 el cuarto.
  * hit: cuándo molestaron al del sillón.
  */
-export const fx = { p: 3, hit: -9, run: false };
+export const fx = { p: 3, hit: -9, run: false, cat: -9, rbx: -9 };
+/** Hacia dónde se mira en el cuarto: 0 al sillón, 1 a la pared del lado. `p` va detrás, suavizado. */
+export const look = { to: 0, p: 0, last: 0 };
+export const pokeCat = () => (fx.cat = performance.now() / 1000);
+export const pokeRbx = () => (fx.rbx = performance.now() / 1000);
 export const poke = () => (fx.hit = performance.now() / 1000);
 
 export const horizon = (_W: number, H: number) => H * 0.5;
@@ -25,7 +29,18 @@ export function layout(W: number, H: number) {
   const head = { x: cx - u * 0.015, y: fl - u * 0.305 };
   const frame: Rect = { x: W * (port ? 0.1 : 0.4) - u * 0.065, y: fl - u * (port ? 0.72 : 0.52), w: u * 0.13, h: u * 0.15 };
   const desk = { x: W * (port ? 0.03 : 0.1), y: fl - u * 0.2, w: u * (port ? 0.3 : 0.34) };
-  return { u, port, fl, cx, me, head, frame, desk };
+  // la pared del lado: librero, el avatar mal pegado, el puff del gato y Rocky echado
+  const shelf: Rect = { x: W * (port ? 0.04 : 0.07), y: fl - u * 0.6, w: u * (port ? 0.42 : 0.34), h: u * 0.6 };
+  const rh = u * 0.36;
+  const rcx = port ? W * 0.63 : shelf.x + shelf.w + u * 0.1;
+  const rbx: Rect = { x: rcx - rh * 0.385, y: fl - rh - u * 0.012, w: rh * 0.77, h: rh };
+  const pcx = port ? W * 0.76 : W * 0.66;
+  const pfl = fl + u * (port ? 0.2 : 0.035); // el puff está más acá
+  const cat: Rect = { x: pcx - u * 0.075, y: pfl - u * 0.29, w: u * 0.15, h: u * 0.2 };
+  const rocky = { x: port ? W * 0.3 : W * 0.86, y: fl + u * (port ? 0.26 : 0.1), s: u * (port ? 0.34 : 0.28) };
+  const metro = { x: shelf.x + shelf.w / 2, y: shelf.y + shelf.h * 0.52 };
+  const side = { shelf, rbx, pcx, pfl, cat, rocky, metro };
+  return { u, port, fl, cx, me, head, frame, desk, side };
 }
 
 const ease = (x: number) => x * x * (3 - 2 * x);
@@ -244,8 +259,8 @@ function dog(ctx: CanvasRenderingContext2D, r: Rect) {
   const pw = Math.round(r.w) - b * 2;
   const ph = Math.round(r.h) - b * 2;
   const pg = ctx.createLinearGradient(0, py, 0, py + ph);
-  pg.addColorStop(0, g(0.95, 0.4));
-  pg.addColorStop(1, g(0.65, 0.8));
+  pg.addColorStop(0, g(0.95, 0, 0.5));
+  pg.addColorStop(1, g(0.6, 0.1, 0.4));
   ctx.fillStyle = pg;
   ctx.fillRect(px, py, pw, ph);
   ctx.save();
@@ -254,37 +269,57 @@ function dog(ctx: CanvasRenderingContext2D, r: Rect) {
   ctx.clip();
   const cx = px + pw / 2;
   const s = pw * 0.5;
-  const hy = py + ph * 0.46;
-  const ink = g(0.04);
-  // cuerpo sentado
+  const hy = py + ph * 0.44;
+  const ink = g(0.03);
+  const tan = g(0.8, 1);
+  // pecho color fuego, lomo negro
   ctx.fillStyle = ink;
   ctx.beginPath();
-  ctx.moveTo(cx - s * 0.7, py + ph);
-  ctx.quadraticCurveTo(cx - s * 0.6, hy + s * 0.2, cx, hy + s * 0.2);
-  ctx.quadraticCurveTo(cx + s * 0.6, hy + s * 0.2, cx + s * 0.7, py + ph);
+  ctx.moveTo(cx - s * 0.95, py + ph);
+  ctx.quadraticCurveTo(cx - s * 0.8, hy + s * 0.2, cx, hy + s * 0.2);
+  ctx.quadraticCurveTo(cx + s * 0.8, hy + s * 0.2, cx + s * 0.95, py + ph);
   ctx.fill();
-  // orejas caídas
+  ctx.fillStyle = tan;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.45, py + ph);
+  ctx.quadraticCurveTo(cx - s * 0.5, hy + s * 0.5, cx, hy + s * 0.45);
+  ctx.quadraticCurveTo(cx + s * 0.5, hy + s * 0.5, cx + s * 0.45, py + ph);
+  ctx.fill();
+  // orejas caídas, negras y peludas
+  ctx.fillStyle = ink;
   for (const k of [-1, 1]) {
     ctx.beginPath();
-    ctx.ellipse(cx + k * s * 0.52, hy - s * 0.05, s * 0.2, s * 0.42, k * 0.35, 0, 7);
+    ctx.ellipse(cx + k * s * 0.6, hy - s * 0.1, s * 0.22, s * 0.46, k * 0.4, 0, 7);
     ctx.fill();
   }
-  // cabeza, hocico claro, nariz y ojos
+  // cabeza negra con las mejillas y las cejas fuego
   ctx.beginPath();
-  ctx.arc(cx, hy - s * 0.1, s * 0.46, 0, 7);
+  ctx.arc(cx, hy - s * 0.12, s * 0.5, 0, 7);
   ctx.fill();
-  ctx.fillStyle = g(0.9);
+  ctx.fillStyle = tan;
+  for (const k of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + k * s * 0.33, hy + s * 0.12, s * 0.17, s * 0.24, k * -0.3, 0, 7);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + k * s * 0.24, hy - s * 0.4, s * 0.08, s * 0.06, k * 0.4, 0, 7);
+    ctx.fill();
+  }
+  // hocico largo y oscuro, la nariz grande
+  ctx.fillStyle = g(0.6, 0.15);
   ctx.beginPath();
-  ctx.ellipse(cx, hy + s * 0.12, s * 0.24, s * 0.2, 0, 0, 7);
+  ctx.ellipse(cx, hy + s * 0.16, s * 0.19, s * 0.3, 0, 0, 7);
   ctx.fill();
   ctx.fillStyle = ink;
-  ctx.fillRect(Math.round(cx - s * 0.08), Math.round(hy + s * 0.02), Math.max(2, Math.round(s * 0.16)), Math.max(2, Math.round(s * 0.11)));
-  ctx.fillRect(Math.round(cx), Math.round(hy + s * 0.1), 1, Math.max(1, Math.round(s * 0.12)));
+  ctx.beginPath();
+  ctx.ellipse(cx, hy + s * 0.33, s * 0.15, s * 0.11, 0, 0, 7);
+  ctx.fill();
   ctx.fillStyle = g(1);
-  for (const k of [-1, 1]) ctx.fillRect(Math.round(cx + k * s * 0.2 - 1), Math.round(hy - s * 0.22), 2, 2);
-  // collar
-  ctx.fillStyle = g(0.9, 1);
-  ctx.fillRect(Math.round(cx - s * 0.3), Math.round(hy + s * 0.36), Math.round(s * 0.6), Math.max(1, Math.round(s * 0.08)));
+  ctx.fillRect(Math.round(cx - s * 0.07), Math.round(hy + s * 0.27), Math.max(1, Math.round(s * 0.08)), 1);
+  // ojos
+  const e = Math.max(2, Math.round(s * 0.1));
+  ctx.fillStyle = g(1);
+  for (const k of [-1, 1]) ctx.fillRect(Math.round(cx + k * s * 0.24 - e / 2), Math.round(hy - s * 0.24), e, e);
   ctx.restore();
 }
 
@@ -624,8 +659,488 @@ function room(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, en
   me(ctx, L, t, env.still);
 }
 
+// ── La pared del lado ────────────────────────────────────────────────────
+
+const hash = (n: number) => {
+  const s = Math.sin(n * 127.1) * 43758.5453;
+  return s - Math.floor(s);
+};
+
+function bookcase(ctx: CanvasRenderingContext2D, r: Rect, u: number) {
+  const x = Math.round(r.x);
+  const y = Math.round(r.y);
+  const w = Math.round(r.w);
+  const h = Math.round(r.h);
+  const b = Math.max(2, Math.round(u * 0.012));
+  ctx.fillStyle = g(0);
+  ctx.fillRect(x + 3, y + 3, w, h);
+  const wood = ctx.createLinearGradient(x, 0, x + w, 0);
+  wood.addColorStop(0, g(0.5, 0.25));
+  wood.addColorStop(1, g(0.22, 0.1));
+  ctx.fillStyle = wood;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = g(1);
+  ctx.fillRect(x, y, w, 1);
+  ctx.fillRect(x, y, 1, h);
+  ctx.fillStyle = g(0.02);
+  ctx.fillRect(x + b, y + b, w - b * 2, h - b * 2);
+  const rows = 4;
+  const rh = (h - b) / rows;
+  for (let j = 0; j < rows; j++) {
+    const base = Math.round(y + rh * (j + 1));
+    const x0 = x + b + 1;
+    const x1 = x + w - b - 1;
+    if (j === 1) {
+      // los tres Metro, de frente
+      const cw = (x1 - x0) * 0.2;
+      const ch = rh * 0.8;
+      ['2033', '2034', '2035'].forEach((yr, i) => {
+        const bx = Math.round(x0 + (x1 - x0) * (0.06 + i * 0.235));
+        const by = Math.round(base - b - ch);
+        ctx.fillStyle = g(0.35);
+        ctx.fillRect(bx + 2, by, Math.round(cw), Math.round(ch));
+        ctx.fillStyle = g(0.03);
+        ctx.fillRect(bx, by, Math.round(cw), Math.round(ch));
+        ctx.fillStyle = g(0.9);
+        ctx.fillRect(bx, by, Math.round(cw), 1);
+        // el túnel de la portada
+        ctx.strokeStyle = g(0.4);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(bx + cw / 2, by + ch * 0.95, cw * 0.32, Math.PI, 0);
+        ctx.moveTo(bx + cw / 2, by + ch * 0.95);
+        ctx.lineTo(bx + cw / 2, by + ch * 0.68);
+        ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = g(0.95);
+        ctx.font = `700 ${Math.max(5, Math.round(cw * 0.26))}px "IBM Plex Sans Condensed", sans-serif`;
+        ctx.fillText('METRO', bx + cw / 2, by + ch * 0.2);
+        ctx.fillStyle = g(1, 1);
+        ctx.font = `700 ${Math.max(7, Math.round(cw * 0.42))}px "IBM Plex Sans Condensed", sans-serif`;
+        ctx.fillText(yr, bx + cw / 2, by + ch * 0.45);
+      });
+      // y una linterna al lado
+      const lx = x0 + (x1 - x0) * 0.82;
+      ctx.fillStyle = g(0.5);
+      ctx.fillRect(Math.round(lx), Math.round(base - b - rh * 0.4), Math.round(u * 0.03), Math.round(rh * 0.4));
+      ctx.fillStyle = g(1, 1);
+      ctx.fillRect(Math.round(lx + u * 0.006), Math.round(base - b - rh * 0.32), Math.round(u * 0.018), Math.round(rh * 0.18));
+      ctx.fillStyle = g(0.2);
+      ctx.fillRect(Math.round(lx + u * 0.008), Math.round(base - b - rh * 0.5), Math.round(u * 0.014), Math.round(rh * 0.1));
+    } else {
+      let bx = x0 + 1;
+      for (let i = 0; bx < x1 - u * 0.03; i++) {
+        const n = hash(j * 31 + i * 1.7);
+        const lean = n > 0.9;
+        const bw = Math.max(2, Math.round(u * (0.012 + 0.016 * hash(i * 3.3 + j))));
+        const bh = Math.round(rh * (0.5 + 0.32 * hash(i * 5.1 + j * 2)));
+        if (n < 0.12) {
+          bx += u * 0.03; // un hueco
+          continue;
+        }
+        ctx.fillStyle = g(0.25 + 0.6 * hash(i * 9.7 + j * 4), n > 0.7 ? 0.7 : 0, n < 0.4 ? 0.6 : 0);
+        if (lean) {
+          ctx.save();
+          ctx.translate(bx, base - b);
+          ctx.rotate(0.25);
+          ctx.fillRect(0, -bh, bw, bh);
+          ctx.restore();
+          bx += bw + bh * 0.26;
+        } else {
+          ctx.fillRect(Math.round(bx), base - b - bh, bw, bh);
+          ctx.fillStyle = g(0.03);
+          ctx.fillRect(Math.round(bx), base - b - Math.round(bh * 0.8), bw, 1);
+          bx += bw + 1;
+        }
+      }
+    }
+    ctx.fillStyle = g(0.45, 0.2);
+    ctx.fillRect(x + b, base - b, w - b * 2, b);
+    ctx.fillStyle = g(0.95);
+    ctx.fillRect(x + b, base - b, w - b * 2, 1);
+  }
+}
+
+/** El gato: la cara del dibujo (ojeras, cicatriz, mechones) y un cuerpecito chico de monito. Blanco. */
+function cat(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, t: number, still: boolean) {
+  const { u } = L;
+  const { pcx, pfl } = L.side;
+  // puff
+  ctx.fillStyle = g(0);
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  ctx.ellipse(pcx, pfl + u * 0.01, u * 0.17, u * 0.025, 0, 0, 7);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  const pg = ctx.createLinearGradient(0, pfl - u * 0.15, 0, pfl);
+  pg.addColorStop(0, g(0.75, 0.75));
+  pg.addColorStop(1, g(0.25, 0.4));
+  ctx.fillStyle = pg;
+  ctx.beginPath();
+  ctx.moveTo(pcx - u * 0.15, pfl);
+  ctx.bezierCurveTo(pcx - u * 0.2, pfl - u * 0.1, pcx - u * 0.1, pfl - u * 0.16, pcx, pfl - u * 0.12);
+  ctx.bezierCurveTo(pcx + u * 0.1, pfl - u * 0.16, pcx + u * 0.2, pfl - u * 0.1, pcx + u * 0.15, pfl);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = g(0.95);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.strokeStyle = g(0.15, 0.3);
+  ctx.beginPath();
+  ctx.moveTo(pcx - u * 0.1, pfl - u * 0.03);
+  ctx.quadraticCurveTo(pcx - u * 0.05, pfl - u * 0.07, pcx - u * 0.07, pfl - u * 0.11);
+  ctx.moveTo(pcx + u * 0.11, pfl - u * 0.03);
+  ctx.quadraticCurveTo(pcx + u * 0.06, pfl - u * 0.06, pcx + u * 0.08, pfl - u * 0.11);
+  ctx.stroke();
+
+  const k = still ? 0 : Math.max(0, 1 - (t - fx.cat) / 0.5);
+  const s = u * 0.052; // radio de la cabeza
+  const hop = Math.sin(k * Math.PI) * s * 0.5;
+  const cx = pcx + Math.sin(k * Math.PI * 5) * s * 0.12 * k;
+  const by = pfl - u * 0.105 - hop; // donde se sienta
+  const cy = by - s * 1.35 + (still ? 0 : Math.sin(t * 1.1) * 0.6);
+  const ink = g(0.02);
+  const fur = g(0.98);
+  const lw = Math.max(1.5, s * 0.1);
+  // cuerpo: tronco corto, bracitos y patitas
+  const body = () => {
+    ctx.beginPath();
+    ctx.roundRect(cx - s * 0.52, by - s * 0.75, s * 1.04, s * 0.8, s * 0.22);
+    ctx.roundRect(cx - s * 0.78, by - s * 0.68, s * 0.3, s * 0.5, s * 0.12);
+    ctx.roundRect(cx + s * 0.48, by - s * 0.68, s * 0.3, s * 0.5, s * 0.12);
+    ctx.roundRect(cx - s * 0.46, by - s * 0.1, s * 0.38, s * 0.42, s * 0.1);
+    ctx.roundRect(cx + s * 0.08, by - s * 0.1, s * 0.38, s * 0.42, s * 0.1);
+  };
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = lw * 2;
+  body();
+  ctx.stroke();
+  ctx.fillStyle = fur;
+  body();
+  ctx.fill();
+  // cola
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = s * 0.34;
+  ctx.lineCap = 'round';
+  const tail = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx + s * 0.5, by - s * 0.1);
+    ctx.quadraticCurveTo(cx + s * 1.3, by, cx + s * 1.2, by - s * (0.7 + (still ? 0 : 0.15 * Math.sin(t * 2.2))));
+    ctx.stroke();
+  };
+  tail();
+  ctx.strokeStyle = fur;
+  ctx.lineWidth = s * 0.34 - lw * 1.4;
+  tail();
+  ctx.lineCap = 'butt';
+  // cabeza: orejas redondeadas, mechones a los lados y abajo
+  const P = (x: number, y: number): [number, number] => [cx + x * s, cy + y * s];
+  const half: [number, number][] = [[0.3, -0.72], [0.42, -1.0], [0.62, -1.12], [0.86, -1.02], [0.95, -0.35], [1.02, 0.02], [0.9, 0.06], [1.08, 0.42], [0.98, 0.98], [0.74, 0.64], [0.56, 0.98], [0.4, 0.66]];
+  const head = () => {
+    ctx.beginPath();
+    half.forEach(([x, y], i) => (i ? ctx.lineTo(...P(x, y)) : ctx.moveTo(...P(x, y))));
+    [...half].reverse().forEach(([x, y]) => ctx.lineTo(...P(-x, y)));
+    ctx.closePath();
+  };
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = lw * 2;
+  head();
+  ctx.stroke();
+  ctx.fillStyle = fur;
+  head();
+  ctx.fill();
+  ctx.lineJoin = 'miter';
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const m of [-1, 1]) {
+    // interior de la oreja
+    ctx.moveTo(...P(m * 0.5, -0.74));
+    ctx.quadraticCurveTo(...P(m * 0.62, -1.0), ...P(m * 0.8, -0.7));
+    // párpado caído, ojo a medio cerrar y ojera
+    const open = k > 0 ? 0.3 : 0.15;
+    ctx.moveTo(...P(m * 0.16, -0.04));
+    ctx.lineTo(...P(m * 0.74, -0.2));
+    ctx.moveTo(...P(m * 0.24, 0));
+    ctx.quadraticCurveTo(...P(m * 0.46, open), ...P(m * 0.7, -0.08));
+    ctx.moveTo(...P(m * 0.24, 0.2));
+    ctx.quadraticCurveTo(...P(m * 0.48, 0.34), ...P(m * 0.74, 0.14));
+  }
+  // cicatriz en la frente
+  ctx.moveTo(...P(-0.02, -0.5));
+  ctx.lineTo(...P(0.04, -0.34));
+  ctx.lineTo(...P(-0.03, -0.24));
+  ctx.lineTo(...P(0.02, -0.1));
+  // boca
+  ctx.moveTo(...P(0, 0.14));
+  ctx.lineTo(...P(0, 0.26));
+  ctx.moveTo(...P(-0.08, 0.36));
+  ctx.lineTo(...P(0, 0.26));
+  ctx.lineTo(...P(0.08, 0.36));
+  ctx.stroke();
+  ctx.fillStyle = ink;
+  for (const m of [-1, 1]) ctx.fillRect(Math.round(cx + m * s * 0.46 - 1), Math.round(cy - s * 0.06), 2, Math.max(1, Math.round(s * (k > 0 ? 0.2 : 0.1))));
+  ctx.beginPath();
+  ctx.moveTo(...P(-0.09, 0.05));
+  ctx.lineTo(...P(0.09, 0.05));
+  ctx.lineTo(...P(0, 0.16));
+  ctx.fill();
+}
+
+/** Rocky, echado en su frazada: negro y fuego, orejas caídas, hocico largo. */
+function rocky(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, t: number, still: boolean) {
+  const { x, y, s } = L.side.rocky;
+  const ink = g(0.03);
+  const tan = g(0.8, 1);
+  const rim = g(0.75);
+  const br = still ? 0 : Math.sin(t * 1.5) * s * 0.008;
+  // frazada
+  ctx.fillStyle = g(0.55, 0.15, 0.3);
+  ctx.beginPath();
+  ctx.ellipse(x, y, s * 0.62, s * 0.1, 0, 0, 7);
+  ctx.fill();
+  ctx.strokeStyle = g(0.9);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  const outline = (draw: () => void, fill: string) => {
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 2;
+    draw();
+    ctx.stroke();
+    ctx.fillStyle = fill;
+    draw();
+    ctx.fill();
+  };
+  // cola peluda
+  outline(() => {
+    ctx.beginPath();
+    ctx.ellipse(x + s * 0.46, y - s * 0.06, s * 0.16, s * 0.045, still ? -0.2 : -0.2 + 0.25 * Math.max(0, Math.sin(t * 6)) * Math.max(0, Math.sin(t * 0.7)), 0, 7);
+  }, ink);
+  // lomo
+  outline(() => {
+    ctx.beginPath();
+    ctx.moveTo(x - s * 0.22, y);
+    ctx.quadraticCurveTo(x - s * 0.26, y - s * 0.24 - br, x, y - s * 0.26 - br);
+    ctx.quadraticCurveTo(x + s * 0.42, y - s * 0.27 - br, x + s * 0.44, y);
+    ctx.closePath();
+  }, ink);
+  // pecho y panza fuego, pata trasera recogida
+  ctx.fillStyle = tan;
+  ctx.beginPath();
+  ctx.moveTo(x - s * 0.22, y);
+  ctx.quadraticCurveTo(x - s * 0.2, y - s * 0.12, x - s * 0.06, y - s * 0.08);
+  ctx.lineTo(x + s * 0.3, y - s * 0.05);
+  ctx.lineTo(x + s * 0.4, y);
+  ctx.fill();
+  outline(() => {
+    ctx.beginPath();
+    ctx.ellipse(x + s * 0.3, y - s * 0.07, s * 0.13, s * 0.08, 0, 0, 7);
+  }, ink);
+  // patas delanteras estiradas
+  for (const d of [0, 1]) {
+    outline(() => {
+      ctx.beginPath();
+      ctx.roundRect(x - s * 0.44 + d * s * 0.05, y - s * 0.055 + d * s * 0.03, s * 0.24, s * 0.05, s * 0.025);
+    }, tan);
+  }
+  // cabeza apoyada: oreja caída, mejilla y ceja fuego, hocico oscuro
+  const hx = x - s * 0.3;
+  const hy = y - s * 0.19;
+  outline(() => {
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, s * 0.13, s * 0.115, 0, 0, 7);
+  }, ink);
+  ctx.fillStyle = tan;
+  ctx.beginPath();
+  ctx.ellipse(hx - s * 0.03, hy + s * 0.05, s * 0.07, s * 0.05, 0.3, 0, 7);
+  ctx.fill();
+  outline(() => {
+    ctx.beginPath();
+    ctx.roundRect(hx - s * 0.24, hy - s * 0.01, s * 0.17, s * 0.085, s * 0.03);
+  }, g(0.6, 0.15));
+  ctx.fillStyle = ink;
+  ctx.beginPath();
+  ctx.ellipse(hx - s * 0.235, hy + s * 0.02, s * 0.03, s * 0.03, 0, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = tan;
+  ctx.fillRect(Math.round(hx - s * 0.085), Math.round(hy - s * 0.065), Math.max(2, Math.round(s * 0.035)), Math.max(1, Math.round(s * 0.02)));
+  ctx.fillStyle = g(1);
+  ctx.fillRect(Math.round(hx - s * 0.08), Math.round(hy - s * 0.04), Math.max(2, Math.round(s * 0.03)), 2);
+  outline(() => {
+    ctx.beginPath();
+    ctx.ellipse(hx + s * 0.07, hy + s * 0.02, s * 0.05, s * 0.11, -0.25, 0, 7);
+  }, ink);
+}
+
+/**
+ * El avatar del amigo. El chiste es que está mal puesto: pocos píxeles, estirado,
+ * chueco, sin sombra, flotando un poco y con el fondo gris de la captura todavía pegado.
+ */
+function avatar(ctx: CanvasRenderingContext2D, L: ReturnType<typeof layout>, t: number) {
+  const r = L.side.rbx;
+  const c = r.w / 20; // una "celda" de la captura
+  const k = Math.max(0, 1 - (t - fx.rbx) / 0.4);
+  const jx = k > 0 ? (Math.floor(t * 14) % 2 ? 3 : -3) : 0; // no se anima: salta de lugar
+  ctx.save();
+  ctx.translate(r.x + r.w / 2 + jx, r.y + r.h / 2);
+  ctx.rotate(-0.045);
+  ctx.translate(-r.w / 2, -r.h / 2);
+  const B = (x: number, y: number, w: number, h: number, col: string) => {
+    ctx.fillStyle = col;
+    ctx.fillRect(x * c, y * c, w * c, h * c);
+  };
+  const dark = g(0.05);
+  const blue = g(0.3, 0, 1);
+  const teal = g(0.4, 0, 0.8);
+  const amber = g(0.85, 1);
+  B(0, 0, 20, 26, g(0.82, 0, 0.3)); // el fondo de la captura
+  B(0, 0, 20, 0.4, g(1));
+  B(0, 0, 0.4, 26, g(1));
+  B(15, 1, 2, 2, g(0.5, 1)); // la bolita
+  B(9, 1, 3, 1, dark); // gorro
+  B(8, 2, 5, 2, dark);
+  B(5.5, 3.4, 10, 0.8, amber); // aureola
+  B(8, 3.2, 5, 1, dark);
+  B(6.5, 4, 8, 5, blue); // pelo
+  B(7.5, 4, 6, 1.2, dark);
+  B(8, 5.2, 5, 3.6, g(0.75, 1)); // la carita naranja
+  B(8.8, 6.3, 1, 1, dark);
+  B(11.2, 6.3, 1, 1, dark);
+  B(9.6, 7.6, 1.8, 0.5, dark);
+  B(4.5, 9, 2.5, 5.5, g(0.7, 0.3, 0.6)); // mochila
+  B(13.5, 9, 2, 5.5, blue);
+  B(7, 9, 7, 9, dark); // abrigo
+  B(10, 10, 1, 1, g(0.9));
+  B(10.2, 11, 0.6, 7, g(0.3));
+  B(2.5, 9.2, 5, 1.8, dark); // brazo estirado
+  B(1.5, 8.2, 2, 2.2, dark);
+  B(14, 10.5, 1.6, 1.6, dark); // el otro brazo
+  B(15.2, 11.8, 1.6, 1.6, dark);
+  B(16.2, 13, 1.6, 1.8, dark);
+  B(6.6, 18, 3.2, 3.4, teal); // pantalón
+  B(10.6, 18, 3.2, 3.4, teal);
+  for (let i = 0; i < 4; i++) {
+    B(7.6, 21.4 + i * 0.6, 1.2, 0.6, i % 2 ? dark : g(0.9)); // medias a rayas
+    B(11.6, 21.4 + i * 0.6, 1.2, 0.6, i % 2 ? dark : g(0.9));
+  }
+  B(6, 23.6, 3.6, 1.6, dark); // botas
+  B(11, 23.6, 3.6, 1.6, dark);
+  // "compresión": bloques sueltos alrededor
+  for (let i = 0; i < 22; i++) B(Math.floor(hash(i * 3.1) * 19), Math.floor(hash(i * 7.7) * 25), 1, 1, hash(i) > 0.5 ? g(0.9, 0, 0.2) : g(0.7, 0, 0.5));
+  ctx.restore();
+}
+
+function side(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
+  const L = layout(W, H);
+  const { u, fl } = L;
+  concrete(ctx, 0, 0, W, fl, u * 0.075, 0.03, 0.17);
+  const fg = ctx.createLinearGradient(0, fl, 0, H);
+  fg.addColorStop(0, g(0.3));
+  fg.addColorStop(1, g(0.08));
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, fl, W, H - fl);
+  ctx.strokeStyle = g(0.03);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = -10; i <= 10; i++) {
+    ctx.moveTo(W / 2 + i * u * 0.11, fl);
+    ctx.lineTo(W / 2 + i * u * 0.32, H);
+  }
+  ctx.stroke();
+  ctx.fillStyle = g(0);
+  ctx.fillRect(0, fl - 2, W, 2);
+  ctx.fillStyle = g(0.7);
+  ctx.fillRect(0, fl, W, 1);
+  // las mismas cañerías siguen de largo
+  for (const [y, h, l] of [[H * 0.05, u * 0.022, 0.4], [H * 0.05 + u * 0.035, u * 0.01, 0.25]] as const) {
+    ctx.fillStyle = g(l);
+    ctx.fillRect(0, Math.round(y), W, Math.max(2, Math.round(h)));
+    ctx.fillStyle = g(0.95);
+    ctx.fillRect(0, Math.round(y), W, 1);
+  }
+  // otro farol
+  const lx = W * (L.port ? 0.6 : 0.56);
+  const ly = H * 0.05 + u * 0.09;
+  const flick = env.still ? 1 : 0.94 + 0.06 * Math.sin(t * 7 + 2) * Math.sin(t * 1.9);
+  ctx.globalCompositeOperation = 'lighter';
+  const lg = ctx.createRadialGradient(lx, ly, 1, lx, ly, u * 0.7);
+  lg.addColorStop(0, g(0.3 * flick, 0.75 * flick));
+  lg.addColorStop(0.5, g(0.08 * flick, 0.28 * flick));
+  lg.addColorStop(1, g(0, 0));
+  ctx.fillStyle = lg;
+  ctx.fillRect(lx - u * 0.7, ly - u * 0.7, u * 1.4, u * 1.4);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = g(0.05);
+  ctx.fillRect(Math.round(lx - 1), Math.round(H * 0.05), 2, Math.round(u * 0.07));
+  ctx.fillStyle = g(1, 1);
+  ctx.beginPath();
+  ctx.ellipse(lx, ly, u * 0.014, u * 0.02, 0, 0, 7);
+  ctx.fill();
+  // afiche del metro en el muro y un mapa de líneas
+  {
+    const pw = u * (L.port ? 0.4 : 0.2);
+    const ph = pw * 0.75;
+    const px = L.port ? W * 0.5 : W * 0.74;
+    const py = L.port ? fl - u * 1.05 : fl - u * 0.5;
+    ctx.fillStyle = g(0.8, 0.2);
+    ctx.fillRect(Math.round(px), Math.round(py), Math.round(pw), Math.round(ph));
+    ctx.lineWidth = 1;
+    for (const [a, b2, col] of [[0.2, 0.8, g(0.1)], [0.75, 0.3, g(0.4, 1)], [0.5, 0.55, g(0.3, 0, 1)]] as const) {
+      ctx.strokeStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(px + pw * 0.08, py + ph * a);
+      ctx.lineTo(px + pw * 0.4, py + ph * a);
+      ctx.lineTo(px + pw * 0.6, py + ph * b2);
+      ctx.lineTo(px + pw * 0.92, py + ph * b2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = g(0.03);
+    for (const [a, b2] of [[0.25, 0.2], [0.5, 0.5], [0.75, 0.3], [0.6, 0.8]]) ctx.fillRect(Math.round(px + pw * a) - 1, Math.round(py + ph * b2) - 1, 2, 2);
+  }
+  bookcase(ctx, L.side.shelf, u);
+  // planta en maceta arriba del librero
+  {
+    const sx = L.side.shelf.x + L.side.shelf.w * 0.75;
+    const sy = L.side.shelf.y;
+    ctx.fillStyle = g(0.5, 0.5);
+    ctx.fillRect(Math.round(sx), Math.round(sy - u * 0.03), Math.round(u * 0.035), Math.round(u * 0.03));
+    ctx.strokeStyle = g(0.6, 0, 0.6);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      ctx.moveTo(sx + u * 0.017, sy - u * 0.03);
+      ctx.quadraticCurveTo(sx + u * 0.017 + (i - 2.5) * u * 0.012, sy - u * 0.08, sx + u * 0.017 + (i - 2.5) * u * 0.028, sy - u * (0.05 + 0.02 * hash(i)));
+    }
+    ctx.stroke();
+  }
+  avatar(ctx, L, t);
+  cat(ctx, L, t, env.still);
+  rocky(ctx, L, t, env.still);
+}
+
 export function draw(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, env: Env) {
+  if (fx.p >= 3) {
+    const dt = Math.min(0.1, Math.max(0, t - look.last));
+    look.last = t;
+    const step = env.still ? 1 : dt / 0.8;
+    look.p = look.to > look.p ? Math.min(look.to, look.p + step) : Math.max(look.to, look.p - step);
+    const e = Math.round(ease(look.p) * W);
+    const pane = (dx: number, f: () => void) => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(dx, 0, W, H);
+      ctx.clip();
+      ctx.translate(dx, 0);
+      f();
+      ctx.restore();
+    };
+    if (e < W) pane(-e, () => room(ctx, W, H, t, env));
+    if (e > 0) pane(W - e, () => side(ctx, W, H, t, env));
+    return;
+  }
+  look.p = look.to = 0;
   if (fx.p < 2) door(ctx, W, H, fx.p);
   else if (fx.p < 3) stairs(ctx, W, H, fx.p - 2);
-  else room(ctx, W, H, t, env);
 }

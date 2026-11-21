@@ -285,6 +285,14 @@ function place() {
   const say2 = $('#say2').style;
   say2.left = `${B.head.x * k}px`;
   say2.top = `${(B.head.y - B.u * 0.055) * k - 8}px`;
+  put('#cat', B.side.cat);
+  put('#rbx', B.side.rbx);
+  const say5 = $('#say5').style;
+  say5.left = `${(B.side.cat.x + B.side.cat.w / 2) * k}px`;
+  say5.top = `${B.side.cat.y * k - 6}px`;
+  const say6 = $('#say6').style;
+  say6.left = `${(B.side.rbx.x + B.side.rbx.w / 2) * k}px`;
+  say6.top = `${B.side.rbx.y * k - 6}px`;
   const plate = $('#rocky').style;
   plate.left = `${(B.frame.x + B.frame.w / 2) * k}px`;
   plate.top = `${(B.frame.y + B.frame.h) * k + 7}px`;
@@ -326,6 +334,8 @@ function go(to: SceneId, instant = false) {
     pokes = 0; // la paciencia del timonel se renueva al salir de la cabina
     cabina.calm();
     lookOut(false);
+    lookSide(false);
+    bunker.look.p = 0;
     state.rise = 0;
     bunker.fx.p = 3;
     written = '';
@@ -508,6 +518,41 @@ document.querySelectorAll<HTMLAnchorElement>('.bar a').forEach((a) =>
   });
 }
 
+// En el búnker se puede girar la vista a la pared del lado
+function lookSide(on: boolean) {
+  if (state.scene !== 'bunker' || bunker.fx.p < 3) on = false;
+  bunker.look.to = on ? 1 : 0;
+  const sec = $('[data-scene="bunker"]');
+  on ? sec.setAttribute('data-side', '') : sec.removeAttribute('data-side');
+  for (const id of ['#say2', '#say5', '#say6']) $(id).classList.remove('on');
+  const b = $('#look2');
+  b.textContent = on ? tr('← Volver al sillón', '← Back to the armchair') : tr('Mirar al lado →', 'Look to the side →');
+  b.setAttribute('aria-pressed', String(on));
+}
+$('#look2').addEventListener('click', () => lookSide(bunker.look.to === 0));
+{
+  // el gato y el avatar contestan lo suyo, tal cual, en cualquier idioma
+  const chatter = (btn: string, bubble: string, lines: string[], rare: string | null, poke: () => void) => {
+    const say = $(bubble);
+    let last = -1;
+    let hide = 0;
+    let talk = 0;
+    $(btn).addEventListener('click', () => {
+      for (const o of ['#say5', '#say6']) if (o !== bubble) $(o).classList.remove('on');
+      poke();
+      let i = Math.floor(Math.random() * (lines.length - 1));
+      if (i >= last) i++;
+      last = i;
+      const text = rare && Math.random() < 0.05 ? rare : lines[i];
+      talk = talkInto(say, text, talk);
+      clearTimeout(hide);
+      hide = window.setTimeout(() => say.classList.remove('on'), 2000 + text.length * 80);
+    });
+  };
+  chatter('#cat', '#say5', ['Ay!', 'Para w!', 'Me pica la pansa...', 'Tengo hambre w', 'Deja dormir w'], 'GUERREROS MILENARIOS!', bunker.pokeCat);
+  chatter('#rbx', '#say6', ['tu mama XD', 'xd XD', 'te voy a tocar exa', 'exa mamalo', 'callate exa'], null, bunker.pokeRbx);
+}
+
 // Arriba, después de todo: el mismo dueño de casa, con máscara y en paz
 {
   const lines = [
@@ -597,10 +642,10 @@ $('#look').addEventListener('click', () => lookOut(cabina.look.to === 0));
   addEventListener(
     'touchend',
     (e) => {
-      if (state.scene !== 'lz20') return;
+      if (state.scene !== 'lz20' && state.scene !== 'bunker') return;
       const dx = e.changedTouches[0].clientX - sx;
       const dy = e.changedTouches[0].clientY - sy;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) lookOut(dx < 0);
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) state.scene === 'bunker' ? lookSide(dx < 0) : lookOut(dx < 0);
     },
     { passive: true },
   );
@@ -608,6 +653,7 @@ $('#look').addEventListener('click', () => lookOut(cabina.look.to === 0));
 
 addEventListener('hashchange', () => go(route()));
 addEventListener('keydown', (e) => {
+  if (state.scene === 'bunker' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.metaKey && !e.altKey) lookSide(e.key === 'ArrowRight');
   if (state.scene === 'lz20' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.ctrlKey && !e.metaKey && !e.altKey) lookOut(e.key === 'ArrowRight');
   if (e.key === 'Escape' && zoom === 'frame') return closeFrame();
   if (e.key === 'Escape' && state.scene === 'lz20' && estribor.fx.spy) return spyOut(false);
