@@ -218,28 +218,24 @@ function click(freq: number, gain: number, dur = 0.02) {
   o.stop(t + dur + 0.01);
 }
 
-/** Huesos al trote: un repiqueteo de xilófono, rápido y desordenado, que se aleja. */
-export function rattle(seconds = 1.9) {
+/** Huesos al trote: el repiqueteo del esqueleto que pasa corriendo. */
+let bonesBuf: Promise<AudioBuffer> | null = null;
+export function rattle() {
   if (!ac || !on) return;
-  const t0 = ac.currentTime;
-  const tones = [1290, 1420, 1880, 2940, 2940, 3320, 3700];
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let at = 0; at < seconds; at += 0.035 + rnd() * 0.03) {
-    const k = at / seconds;
-    const vol = 0.11 * Math.min(1, at / 0.12) * (1 - k * 0.75);
-    const f = tones[Math.floor(rnd() * tones.length)] * (1 - k * 0.04);
-    const o = ac.createOscillator();
-    const og = ac.createGain();
-    o.type = 'triangle';
-    o.frequency.value = f;
-    og.gain.setValueAtTime(0.0001, t0 + at);
-    og.gain.linearRampToValueAtTime(vol, t0 + at + 0.003);
-    og.gain.exponentialRampToValueAtTime(0.0005, t0 + at + 0.07);
-    o.connect(og).connect(master);
-    o.start(t0 + at);
-    o.stop(t0 + at + 0.08);
-  }
+  const ctx = ac;
+  bonesBuf ??= fetch('/audio/esqueleto.mp3')
+    .then((r) => r.arrayBuffer())
+    .then((b) => ctx.decodeAudioData(b));
+  bonesBuf
+    .then((buf) => {
+      const src = ctx.createBufferSource();
+      const og = ctx.createGain();
+      og.gain.value = 0.8;
+      src.buffer = buf;
+      src.connect(og).connect(master);
+      src.start();
+    })
+    .catch(() => (bonesBuf = null));
 }
 
 /** Tic (0) y tac (1) del reloj de mesa. */
